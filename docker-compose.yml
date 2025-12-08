@@ -131,7 +131,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       
       # JWT Secret (change in production!)
-      JWT_SECRET: dGhpcyBpcyBhIHZlcnkgc2VjdXJlIHNlY3JldCBrZXkgZm9yIGp3dCB0b2tlbiBnZW5lcmF0aW9u
+      JWT_SECRET: XXXXXXXXXXX
       
       # Server
       SERVER_PORT: 8080
