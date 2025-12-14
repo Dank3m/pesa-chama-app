@@ -20,6 +20,12 @@ public class LoanEvent {
     private UUID loanId;
     private String loanNumber;
     private UUID memberId;
+    private String phoneNumber;
+    private String email;
+    private UUID groupId;
+    private String groupName;
+    private LocalDate dueDate;
+    private LocalDate disbursementDate;
     private String memberName;
     private BigDecimal amount;
     private BigDecimal outstandingBalance;

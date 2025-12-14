@@ -23,6 +23,9 @@ public interface ContributionCycleRepository extends JpaRepository<ContributionC
 
     List<ContributionCycle> findByStatus(CycleStatus status);
 
+    List<ContributionCycle> findByDueDateBetweenAndStatus(LocalDate start, LocalDate end, CycleStatus status);
+    List<ContributionCycle> findByDueDateBeforeAndStatus(LocalDate date, CycleStatus status);
+
     @Query("SELECT cc FROM ContributionCycle cc WHERE cc.financialYear.id = :yearId AND cc.status = :status")
     List<ContributionCycle> findByFinancialYearIdAndStatus(
             @Param("yearId") UUID financialYearId, 

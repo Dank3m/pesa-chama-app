@@ -542,15 +542,24 @@ public class LoanService {
 
     private void publishLoanEvent(Loan loan, String eventType) {
         try {
+            Member member = loan.getMember();
+            BankingGroup group = member.getGroup();
+
             LoanEvent event = LoanEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .eventType(eventType)
                     .loanId(loan.getId())
                     .loanNumber(loan.getLoanNumber())
-                    .memberId(loan.getMember().getId())
-                    .memberName(loan.getMember().getFullName())
+                    .memberId(member.getId())
+                    .memberName(member.getFullName())
+                    .phoneNumber(member.getPhoneNumber())
+                    .email(member.getEmail())
+                    .groupId(group.getId())
+                    .groupName(group.getName())
                     .amount(loan.getPrincipalAmount())
                     .outstandingBalance(loan.getOutstandingBalance())
+                    .dueDate(loan.getExpectedEndDate())
+                    .disbursementDate(loan.getDisbursementDate())
                     .status(loan.getStatus().name())
                     .timestamp(Instant.now())
                     .build();

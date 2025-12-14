@@ -1,6 +1,7 @@
 package com.tablebanking.loanmanagement.repository;
 
 import com.tablebanking.loanmanagement.entity.Contribution;
+import com.tablebanking.loanmanagement.entity.ContributionCycle;
 import com.tablebanking.loanmanagement.entity.enums.ContributionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,9 @@ public interface ContributionRepository extends JpaRepository<Contribution, UUID
     Page<Contribution> findByMemberId(UUID memberId, Pageable pageable);
 
     List<Contribution> findByCycleId(UUID cycleId);
+
+    List<Contribution> findByCycleAndStatusIn(ContributionCycle cycle, List<ContributionStatus> statuses);
+
 
     Optional<Contribution> findByMemberIdAndCycleId(UUID memberId, UUID cycleId);
 

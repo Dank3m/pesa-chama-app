@@ -19,6 +19,11 @@ public class ContributionEvent {
     private String eventType;
     private UUID contributionId;
     private UUID memberId;
+    private String phoneNumber;
+    private String email;
+    private UUID groupId;
+    private String groupName;
+    private LocalDate dueDate;
     private String memberName;
     private LocalDate cycleMonth;
     private BigDecimal expectedAmount;

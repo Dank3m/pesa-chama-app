@@ -30,6 +30,8 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
     List<Loan> findByFinancialYearId(UUID financialYearId);
 
     List<Loan> findByStatus(LoanStatus status);
+    List<Loan> findByMemberGroupIdAndStatus(UUID groupId, LoanStatus status);
+
 
     @Query("SELECT l FROM Loan l WHERE l.status IN ('DISBURSED', 'ACTIVE')")
     List<Loan> findActiveLoans();

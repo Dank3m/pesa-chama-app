@@ -343,13 +343,22 @@ public class ContributionService {
 
     private void publishContributionEvent(Contribution contribution, String eventType) {
         try {
+            Member member = contribution.getMember();
+            BankingGroup group = member.getGroup();
+            ContributionCycle cycle = contribution.getCycle();
+
             ContributionEvent event = ContributionEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .eventType(eventType)
                     .contributionId(contribution.getId())
-                    .memberId(contribution.getMember().getId())
-                    .memberName(contribution.getMember().getFullName())
-                    .cycleMonth(contribution.getCycle().getCycleMonth())
+                    .memberId(member.getId())
+                    .memberName(member.getFullName())
+                    .phoneNumber(member.getPhoneNumber())
+                    .email(member.getEmail())
+                    .groupId(group.getId())
+                    .groupName(group.getName())
+                    .cycleMonth(cycle.getCycleMonth())
+                    .dueDate(cycle.getDueDate())
                     .expectedAmount(contribution.getExpectedAmount())
                     .paidAmount(contribution.getPaidAmount())
                     .status(contribution.getStatus().name())
