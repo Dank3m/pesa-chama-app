@@ -9,12 +9,14 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -29,10 +31,37 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String paramName = ex.getName();
+        String value = ex.getValue() != null ? ex.getValue().toString() : "null";
+        Class<?> requiredType = ex.getRequiredType();
+
+        String message;
+        if (requiredType != null && UUID.class.isAssignableFrom(requiredType)) {
+            message = String.format("Invalid UUID format for parameter '%s': '%s'. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+                    paramName, value);
+        } else {
+            message = String.format("Invalid value '%s' for parameter '%s'. Expected type: %s",
+                    value, paramName, requiredType != null ? requiredType.getSimpleName() : "unknown");
+        }
+
+        log.warn("Type mismatch: {}", message);
+        return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
+        String message = String.format("Missing required parameter: '%s' of type %s",
+                ex.getParameterName(), ex.getParameterType());
+        log.warn("Missing parameter: {}", message);
+        return ResponseEntity.badRequest().body(ApiResponse.error(message));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
             MethodArgumentNotValidException ex) {
-        
+
         Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         FieldError::getField,
@@ -41,7 +70,7 @@ public class GlobalExceptionHandler {
                 ));
 
         log.warn("Validation failed: {}", errors);
-        
+
         ApiResponse<Map<String, String>> response = ApiResponse.<Map<String, String>>builder()
                 .success(false)
                 .message("Validation failed")
