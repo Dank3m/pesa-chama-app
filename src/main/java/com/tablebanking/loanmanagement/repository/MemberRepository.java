@@ -30,6 +30,8 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     Optional<Member> findByNationalId(String nationalId);
 
+    Optional<Member> findByMemberNumber(String memberNumber);
+
     @Query("SELECT m FROM Member m WHERE m.group.id = :groupId AND m.status = 'ACTIVE'")
     List<Member> findActiveMembers(@Param("groupId") UUID groupId);
 

@@ -42,8 +42,8 @@ public class MemberLookupController {
             @RequestParam(required = false) UUID memberId,
             @RequestParam(required = false) String identifier) {
         
-        log.info("Member lookup: idNumber={}, phoneNumber={}, memberId={}", 
-                idNumber, phoneNumber, memberId);
+        log.info("Member lookup: idNumber={}, phoneNumber={}, memberId={}, identifier={}",
+                idNumber, phoneNumber, memberId, identifier);
 
         Member member = null;
 
@@ -64,6 +64,7 @@ public class MemberLookupController {
         else if (identifier != null && !identifier.isBlank()) {
             member = memberRepository.findByNationalId(identifier)
                     .or(() -> memberRepository.findByPhoneNumber(normalizePhoneNumber(identifier)))
+                    .or(() -> memberRepository.findByMemberNumber(identifier))
                     .orElse(null);
         }
 
