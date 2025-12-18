@@ -38,7 +38,7 @@ public class PaymentEventConsumer {
      * Handle contribution payment events from payment service
      */
     @KafkaListener(
-            topics = "${kafka.topics.contribution-events:contribution-events}",
+            topics = "${app.kafka.topics.contribution-events:contribution-events}",
             groupId = "${spring.kafka.consumer.group-id:pesa-chama-group}",
             containerFactory = "kafkaListenerContainerFactory"
     )
@@ -107,7 +107,7 @@ public class PaymentEventConsumer {
      * Handle loan repayment events from payment service
      */
     @KafkaListener(
-            topics = "${kafka.topics.loan-events:loan-events}",
+            topics = "${app.kafka.topics.loan-events:loan-events}",
             groupId = "${spring.kafka.consumer.group-id:table-banking-group}",
             containerFactory = "kafkaListenerContainerFactory"
     )
