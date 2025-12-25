@@ -372,4 +372,16 @@ public class ResponseDTOs {
         private boolean first;
         private boolean last;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AdvancePaymentStatusResponse {
+        private UUID memberId;
+        private UUID financialYearId;
+        private int monthsPaidAhead;
+        private BigDecimal totalPaidAhead;
+        private LocalDate lastPaidMonth;
+    }
 }

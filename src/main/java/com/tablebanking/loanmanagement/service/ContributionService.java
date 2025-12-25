@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -46,6 +47,8 @@ public class ContributionService {
 
     /**
      * Record a contribution payment from a member.
+     * If the payment exceeds the current cycle's expected amount,
+     * the excess is automatically applied to future cycles.
      */
     @CacheEvict(value = {"memberBalance", "cycleContributions"}, allEntries = true)
     public ContributionResponse recordContribution(RecordContributionRequest request) {
@@ -68,43 +71,217 @@ public class ContributionService {
             throw new BusinessException("Contribution for this cycle is already fully paid");
         }
 
-        BigDecimal amountToRecord = request.getAmount();
+        BigDecimal totalPayment = request.getAmount();
         BigDecimal outstanding = contribution.getOutstandingAmount();
 
-        if (amountToRecord.compareTo(outstanding) > 0) {
-            log.warn("Payment {} exceeds outstanding {}. Recording outstanding amount only.",
-                    amountToRecord, outstanding);
-            amountToRecord = outstanding;
+        // Calculate amount for current cycle and excess
+        BigDecimal amountForCurrentCycle;
+        BigDecimal excessAmount;
+
+        if (totalPayment.compareTo(outstanding) > 0) {
+            amountForCurrentCycle = outstanding;
+            excessAmount = totalPayment.subtract(outstanding);
+            log.info("Payment {} exceeds outstanding {}. Excess {} will be applied to future cycles.",
+                    totalPayment, outstanding, excessAmount);
+        } else {
+            amountForCurrentCycle = totalPayment;
+            excessAmount = BigDecimal.ZERO;
         }
 
-        // Update contribution
-        contribution.addPayment(amountToRecord);
+        // Record payment for current cycle
+        contribution.addPayment(amountForCurrentCycle);
         contribution.setPaymentDate(Instant.now());
         contribution.setNotes(request.getNotes());
         contribution = contributionRepository.save(contribution);
 
         // Update cycle total
-        cycle.addContribution(amountToRecord);
+        cycle.addContribution(amountForCurrentCycle);
         cycleRepository.save(cycle);
 
         // Update member balance
-        updateMemberBalance(member, cycle.getFinancialYear(), amountToRecord);
+        updateMemberBalance(member, cycle.getFinancialYear(), amountForCurrentCycle);
 
         // Update financial year total
         FinancialYear year = cycle.getFinancialYear();
-        year.addContribution(amountToRecord);
+        year.addContribution(amountForCurrentCycle);
         financialYearRepository.save(year);
 
-        // Create transaction record
-        createContributionTransaction(member, cycle, contribution, amountToRecord, request.getReferenceNumber());
+        // Create transaction record for current cycle
+        createContributionTransaction(member, cycle, contribution, amountForCurrentCycle, request.getReferenceNumber());
 
-        // Publish event
+        // Publish event for current cycle
         publishContributionEvent(contribution, "CONTRIBUTION_RECEIVED");
 
         log.info("Recorded contribution: Member={}, Cycle={}, Amount={}, Status={}",
-                member.getMemberNumber(), cycle.getCycleMonth(), amountToRecord, contribution.getStatus());
+                member.getMemberNumber(), cycle.getCycleMonth(), amountForCurrentCycle, contribution.getStatus());
+
+        // Apply excess to future cycles if any
+        if (excessAmount.compareTo(BigDecimal.ZERO) > 0) {
+            applyExcessToFutureCycles(member, cycle, excessAmount, request.getReferenceNumber());
+        }
 
         return mapToContributionResponse(contribution);
+    }
+
+    /**
+     * Apply excess payment amount to future contribution cycles.
+     * Creates future cycles and contributions as needed within the financial year.
+     */
+    private void applyExcessToFutureCycles(Member member, ContributionCycle currentCycle,
+                                           BigDecimal excessAmount, String referenceNumber) {
+        FinancialYear year = currentCycle.getFinancialYear();
+        BankingGroup group = year.getGroup();
+        BigDecimal expectedPerCycle = group.getContributionAmount();
+
+        BigDecimal remainingExcess = excessAmount;
+        LocalDate nextMonth = currentCycle.getCycleMonth().plusMonths(1);
+
+        List<ContributionAllocation> allocations = new ArrayList<>();
+
+        while (remainingExcess.compareTo(BigDecimal.ZERO) > 0 && !nextMonth.isAfter(year.getEndDate())) {
+            // Get or create the future cycle
+            ContributionCycle futureCycle = getOrCreateCycle(year, nextMonth);
+
+            // Get or create contribution record for this member in the future cycle
+            Contribution futureContribution = contributionRepository
+                    .findByMemberIdAndCycleId(member.getId(), futureCycle.getId())
+                    .orElseGet(() -> createContribution(member, futureCycle));
+
+            if (futureContribution.isFullyPaid()) {
+                // Skip to next month if already fully paid
+                nextMonth = nextMonth.plusMonths(1);
+                continue;
+            }
+
+            BigDecimal futureOutstanding = futureContribution.getOutstandingAmount();
+            BigDecimal amountToApply = remainingExcess.min(futureOutstanding);
+
+            // Apply payment to future contribution
+            futureContribution.addPayment(amountToApply);
+            futureContribution.setPaymentDate(Instant.now());
+            futureContribution.setNotes("Auto-applied from overpayment on " + currentCycle.getCycleMonth());
+            futureContribution = contributionRepository.save(futureContribution);
+
+            // Update future cycle total
+            futureCycle.addContribution(amountToApply);
+            cycleRepository.save(futureCycle);
+
+            // Update member balance
+            updateMemberBalance(member, year, amountToApply);
+
+            // Update financial year total
+            year.addContribution(amountToApply);
+            financialYearRepository.save(year);
+
+            // Create transaction record
+            createContributionTransaction(member, futureCycle, futureContribution, amountToApply,
+                    referenceNumber + "-EXCESS-" + futureCycle.getCycleMonth());
+
+            // Publish event
+            publishContributionEvent(futureContribution, "CONTRIBUTION_RECEIVED");
+
+            allocations.add(new ContributionAllocation(futureCycle.getCycleMonth(), amountToApply,
+                    futureContribution.getStatus()));
+
+            log.info("Applied excess to future cycle: Member={}, Cycle={}, Amount={}, Status={}",
+                    member.getMemberNumber(), futureCycle.getCycleMonth(), amountToApply,
+                    futureContribution.getStatus());
+
+            remainingExcess = remainingExcess.subtract(amountToApply);
+            nextMonth = nextMonth.plusMonths(1);
+        }
+
+        // Log summary of allocations
+        if (!allocations.isEmpty()) {
+            log.info("Excess payment allocation summary for member {}: {}",
+                    member.getMemberNumber(), allocations);
+        }
+
+        // If there's still remaining excess after the financial year ends, log a warning
+        if (remainingExcess.compareTo(BigDecimal.ZERO) > 0) {
+            log.warn("Remaining excess {} for member {} could not be allocated - " +
+                            "financial year end reached. Consider handling as credit balance.",
+                    remainingExcess, member.getMemberNumber());
+            // TODO: Could store as credit balance for next financial year
+        }
+    }
+
+    /**
+     * Get existing cycle or create a new one for the specified month.
+     */
+    private ContributionCycle getOrCreateCycle(FinancialYear year, LocalDate cycleMonth) {
+        LocalDate normalizedMonth = cycleMonth.withDayOfMonth(1);
+
+        return cycleRepository.findByFinancialYearIdAndCycleMonth(year.getId(), normalizedMonth)
+                .orElseGet(() -> {
+                    LocalDate dueDate = normalizedMonth.with(TemporalAdjusters.lastDayOfMonth());
+
+                    ContributionCycle newCycle = ContributionCycle.builder()
+                            .financialYear(year)
+                            .cycleMonth(normalizedMonth)
+                            .dueDate(dueDate)
+                            .expectedAmount(year.getGroup().getContributionAmount())
+                            .status(CycleStatus.OPEN)
+                            .build();
+
+                    newCycle = cycleRepository.save(newCycle);
+                    log.info("Created future contribution cycle for {}", normalizedMonth);
+
+                    return newCycle;
+                });
+    }
+
+    /**
+     * Record for tracking allocation of excess payments.
+     */
+    private record ContributionAllocation(LocalDate cycleMonth, BigDecimal amount, ContributionStatus status) {
+        @Override
+        public String toString() {
+            return String.format("%s: %s (%s)", cycleMonth, amount, status);
+        }
+    }
+
+    /**
+     * Record a bulk/advance contribution payment from a member.
+     * Allows specifying how many months to pay in advance.
+     */
+    @CacheEvict(value = {"memberBalance", "cycleContributions"}, allEntries = true)
+    public List<ContributionResponse> recordAdvanceContribution(UUID memberId, UUID startCycleId,
+                                                                int numberOfMonths, String referenceNumber) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException("Member not found"));
+
+        ContributionCycle startCycle = cycleRepository.findById(startCycleId)
+                .orElseThrow(() -> new BusinessException("Contribution cycle not found"));
+
+        FinancialYear year = startCycle.getFinancialYear();
+        BankingGroup group = year.getGroup();
+        BigDecimal expectedPerCycle = group.getContributionAmount();
+
+        BigDecimal totalAmount = expectedPerCycle.multiply(BigDecimal.valueOf(numberOfMonths));
+
+        // Use the main recordContribution method which will handle the spreading
+        RecordContributionRequest request = new RecordContributionRequest();
+        request.setMemberId(memberId);
+        request.setCycleId(startCycleId);
+        request.setAmount(totalAmount);
+        request.setReferenceNumber(referenceNumber);
+        request.setNotes("Advance payment for " + numberOfMonths + " months");
+
+        recordContribution(request);
+
+        // Return all affected contributions
+        return getContributionsByMemberForYear(memberId, year.getId());
+    }
+
+    /**
+     * Get contributions by member for a specific financial year.
+     */
+    @Transactional(readOnly = true)
+    public List<ContributionResponse> getContributionsByMemberForYear(UUID memberId, UUID financialYearId) {
+        return contributionRepository.findByMemberIdAndFinancialYearId(memberId, financialYearId).stream()
+                .map(this::mapToContributionResponse)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -294,6 +471,38 @@ public class ContributionService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get member's advance payment status - shows how many months are paid ahead.
+     */
+    @Transactional(readOnly = true)
+    public AdvancePaymentStatusResponse getAdvancePaymentStatus(UUID memberId, UUID financialYearId) {
+        List<Contribution> contributions = contributionRepository
+                .findByMemberIdAndFinancialYearId(memberId, financialYearId);
+
+        LocalDate today = LocalDate.now();
+        int monthsPaidAhead = 0;
+        BigDecimal totalPaidAhead = BigDecimal.ZERO;
+        LocalDate lastPaidMonth = null;
+
+        for (Contribution c : contributions) {
+            if (c.isFullyPaid() && c.getCycle().getCycleMonth().isAfter(today.withDayOfMonth(1))) {
+                monthsPaidAhead++;
+                totalPaidAhead = totalPaidAhead.add(c.getPaidAmount());
+                if (lastPaidMonth == null || c.getCycle().getCycleMonth().isAfter(lastPaidMonth)) {
+                    lastPaidMonth = c.getCycle().getCycleMonth();
+                }
+            }
+        }
+
+        return AdvancePaymentStatusResponse.builder()
+                .memberId(memberId)
+                .financialYearId(financialYearId)
+                .monthsPaidAhead(monthsPaidAhead)
+                .totalPaidAhead(totalPaidAhead)
+                .lastPaidMonth(lastPaidMonth)
+                .build();
+    }
+
     // Private helper methods
 
     private Contribution createContribution(Member member, ContributionCycle cycle) {
@@ -343,22 +552,13 @@ public class ContributionService {
 
     private void publishContributionEvent(Contribution contribution, String eventType) {
         try {
-            Member member = contribution.getMember();
-            BankingGroup group = member.getGroup();
-            ContributionCycle cycle = contribution.getCycle();
-
             ContributionEvent event = ContributionEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .eventType(eventType)
                     .contributionId(contribution.getId())
-                    .memberId(member.getId())
-                    .memberName(member.getFullName())
-                    .phoneNumber(member.getPhoneNumber())
-                    .email(member.getEmail())
-                    .groupId(group.getId())
-                    .groupName(group.getName())
-                    .cycleMonth(cycle.getCycleMonth())
-                    .dueDate(cycle.getDueDate())
+                    .memberId(contribution.getMember().getId())
+                    .memberName(contribution.getMember().getFullName())
+                    .cycleMonth(contribution.getCycle().getCycleMonth())
                     .expectedAmount(contribution.getExpectedAmount())
                     .paidAmount(contribution.getPaidAmount())
                     .status(contribution.getStatus().name())

@@ -108,4 +108,34 @@ public class ContributionController {
         return ResponseEntity.ok(ApiResponse.success(
                 String.format("%d contributions converted to loans", count), count));
     }
+
+    @GetMapping("/member/{memberId}/advance-status")
+    @Operation(summary = "Get member's advance payment status - shows how many months are paid ahead")
+    public ResponseEntity<ApiResponse<AdvancePaymentStatusResponse>> getAdvancePaymentStatus(
+            @PathVariable UUID memberId,
+            @RequestParam UUID financialYearId) {
+        AdvancePaymentStatusResponse status = contributionService.getAdvancePaymentStatus(memberId, financialYearId);
+        return ResponseEntity.ok(ApiResponse.success(status));
+    }
+    @PostMapping("/record-advance")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Record an advance contribution payment for multiple months")
+    public ResponseEntity<ApiResponse<List<ContributionResponse>>> recordAdvanceContribution(
+            @RequestParam UUID memberId,
+            @RequestParam UUID startCycleId,
+            @RequestParam int numberOfMonths,
+            @RequestParam(required = false) String referenceNumber) {
+        List<ContributionResponse> contributions = contributionService.recordAdvanceContribution(
+                memberId, startCycleId, numberOfMonths, referenceNumber);
+        return ResponseEntity.ok(ApiResponse.success(
+                String.format("Advance contribution recorded for %d months", numberOfMonths), contributions));
+    }
+    @GetMapping("/member/{memberId}/year/{financialYearId}")
+    @Operation(summary = "Get all contributions by member for a specific financial year")
+    public ResponseEntity<ApiResponse<List<ContributionResponse>>> getContributionsByMemberForYear(
+            @PathVariable UUID memberId,
+            @PathVariable UUID financialYearId) {
+        List<ContributionResponse> contributions = contributionService.getContributionsByMemberForYear(memberId, financialYearId);
+        return ResponseEntity.ok(ApiResponse.success(contributions));
+    }
 }

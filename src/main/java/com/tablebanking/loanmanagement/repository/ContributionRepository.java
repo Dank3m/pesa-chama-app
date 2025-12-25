@@ -55,4 +55,13 @@ public interface ContributionRepository extends JpaRepository<Contribution, UUID
 
     @Query("SELECT c FROM Contribution c JOIN FETCH c.member WHERE c.cycle.id = :cycleId")
     List<Contribution> findByCycleIdWithMembers(@Param("cycleId") UUID cycleId);
+
+    @Query("SELECT c FROM Contribution c " +
+            "JOIN FETCH c.cycle cycle " +
+            "WHERE c.member.id = :memberId " +
+            "AND cycle.financialYear.id = :financialYearId " +
+            "ORDER BY cycle.cycleMonth ASC")
+    List<Contribution> findByMemberIdAndFinancialYearId(
+            @Param("memberId") UUID memberId,
+            @Param("financialYearId") UUID financialYearId);
 }
