@@ -7,7 +7,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public class RequestDTOs {
@@ -206,5 +208,92 @@ public class RequestDTOs {
         private String password;
 
         private String role;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateExternalBorrowerRequest {
+        @NotNull
+        private UUID groupId;
+
+        @NotBlank
+        @Size(max = 50)
+        private String firstName;
+
+        @NotBlank
+        @Size(max = 50)
+        private String lastName;
+
+        @NotBlank
+        @Pattern(regexp = "^0[17]\\d{8}$", message = "Invalid phone number format")
+        private String phoneNumber;
+
+        @Email
+        private String email;
+
+        @Size(max = 20)
+        private String nationalId;
+
+        private String address;
+        private String employer;
+        private String occupation;
+        private String notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateGuaranteedLoanRequest {
+        @NotNull
+        private UUID externalBorrowerId;
+
+        @NotNull
+        private UUID guarantorMemberId;
+
+        @NotNull
+        @DecimalMin(value = "1000.00", message = "Minimum loan amount is 1000")
+        private BigDecimal principalAmount;
+
+        @NotNull
+        private LocalDate disbursementDate;
+
+        /**
+         * Optional: percentage of loan this guarantor covers (default 100%).
+         * Can add multiple guarantors with different percentages.
+         */
+        @DecimalMin(value = "1")
+        @DecimalMax(value = "100")
+        private BigDecimal guaranteePercentage;
+
+        private String notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AddGuarantorRequest {
+        @NotNull
+        private UUID loanId;
+
+        @NotNull
+        private UUID memberId;
+
+        /**
+         * Fixed amount to guarantee (optional).
+         */
+        private BigDecimal guaranteedAmount;
+
+        /**
+         * Percentage of loan to guarantee (default 100%).
+         */
+        @DecimalMin(value = "1")
+        @DecimalMax(value = "100")
+        private BigDecimal guaranteePercentage;
+
+        private String notes;
     }
 }

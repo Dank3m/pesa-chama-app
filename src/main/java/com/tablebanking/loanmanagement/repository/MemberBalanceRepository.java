@@ -34,4 +34,10 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
 
     @Query("SELECT mb FROM MemberBalance mb JOIN FETCH mb.member WHERE mb.financialYear.id = :yearId")
     List<MemberBalance> findByYearWithMembers(@Param("yearId") UUID financialYearId);
+
+    @Query("SELECT mb FROM MemberBalance mb " +
+            "WHERE mb.member.id = :memberId " +
+            "ORDER BY mb.financialYear.startDate DESC " +
+            "LIMIT 1")
+    Optional<MemberBalance> findLatestByMemberId(@Param("memberId") UUID memberId);
 }

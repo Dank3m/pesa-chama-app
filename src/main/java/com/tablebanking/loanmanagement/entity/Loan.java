@@ -25,7 +25,7 @@ public class Loan extends BaseEntity {
     private String loanNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id", nullable = false)
+    @JoinColumn(name = "member_id")
     private Member member;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -93,6 +93,67 @@ public class Loan extends BaseEntity {
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<LoanRepayment> repayments = new ArrayList<>();
+
+    /**
+     * External borrower (for guaranteed loans to non-members).
+     * If set, this is a guaranteed loan; member_id should be null.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "external_borrower_id")
+    private ExternalBorrower externalBorrower;
+
+    /**
+     * List of guarantors for this loan.
+     */
+    @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<LoanGuarantor> guarantors = new ArrayList<>();
+
+    /**
+     * Check if this is a guaranteed loan (to non-member).
+     */
+    public boolean isGuaranteedLoan() {
+        return loanType == LoanType.GUARANTEED && externalBorrower != null;
+    }
+
+    /**
+     * Get the borrower name (works for both member and external borrower).
+     */
+    public String getBorrowerName() {
+        if (externalBorrower != null) {
+            return externalBorrower.getFullName();
+        }
+        if (member != null) {
+            return member.getFullName();
+        }
+        return "Unknown";
+    }
+
+    /**
+     * Get primary guarantor (first guarantor or the one with highest percentage).
+     */
+    public LoanGuarantor getPrimaryGuarantor() {
+        return guarantors.stream()
+                .filter(LoanGuarantor::isActive)
+                .max((g1, g2) -> g1.getGuaranteePercentage().compareTo(g2.getGuaranteePercentage()))
+                .orElse(null);
+    }
+
+    /**
+     * Add a guarantor to this loan.
+     */
+    public void addGuarantor(LoanGuarantor guarantor) {
+        guarantors.add(guarantor);
+        guarantor.setLoan(this);
+    }
+
+    /**
+     * Release all guarantors (when loan is paid off).
+     */
+    public void releaseAllGuarantors() {
+        guarantors.forEach(LoanGuarantor::release);
+    }
+
 
     public boolean isActive() {
         return status == LoanStatus.ACTIVE || status == LoanStatus.DISBURSED;

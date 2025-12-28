@@ -384,4 +384,92 @@ public class ResponseDTOs {
         private BigDecimal totalPaidAhead;
         private LocalDate lastPaidMonth;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExternalBorrowerResponse {
+        private UUID id;
+        private UUID groupId;
+        private String firstName;
+        private String lastName;
+        private String fullName;
+        private String phoneNumber;
+        private String email;
+        private String nationalId;
+        private String address;
+        private String employer;
+        private String occupation;
+        private String status;
+        private int activeLoansCount;
+        private BigDecimal totalOutstanding;
+        private String notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LoanGuarantorResponse {
+        private UUID id;
+        private UUID loanId;
+        private String loanNumber;
+        private UUID memberId;
+        private String memberName;
+        private String memberPhone;
+        private BigDecimal guaranteedAmount;
+        private BigDecimal guaranteePercentage;
+        private BigDecimal effectiveGuaranteedAmount;
+        private String status;
+        private Instant acceptedAt;
+        private Instant releasedAt;
+        private BigDecimal amountPaidOnBehalf;
+        private String notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GuarantorExposureResponse {
+        private UUID memberId;
+        private String memberName;
+        private int activeGuaranteesCount;
+        private BigDecimal totalGuaranteedAmount;
+        private BigDecimal totalPaidOnBehalf;
+        private List<LoanGuarantorResponse> activeGuarantees;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GuaranteedLoanResponse {
+        private UUID id;
+        private String loanNumber;
+
+        // Borrower info (external)
+        private UUID externalBorrowerId;
+        private String borrowerName;
+        private String borrowerPhone;
+
+        // Loan details
+        private BigDecimal principalAmount;
+        private BigDecimal interestRate;
+        private LocalDate disbursementDate;
+        private LocalDate expectedEndDate;
+        private BigDecimal totalInterestAccrued;
+        private BigDecimal totalAmountDue;
+        private BigDecimal totalAmountPaid;
+        private BigDecimal outstandingBalance;
+        private String status;
+
+        // Guarantor info
+        private List<LoanGuarantorResponse> guarantors;
+        private String primaryGuarantorName;
+
+        private String notes;
+        private Instant createdAt;
+    }
 }

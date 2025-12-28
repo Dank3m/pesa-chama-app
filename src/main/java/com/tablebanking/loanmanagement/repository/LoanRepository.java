@@ -78,4 +78,35 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
 
     @Query("SELECT l FROM Loan l WHERE l.sourceContribution.id = :contributionId")
     Optional<Loan> findBySourceContributionId(@Param("contributionId") UUID contributionId);
+
+    @Query("SELECT l FROM Loan l " +
+            "LEFT JOIN FETCH l.externalBorrower eb " +
+            "LEFT JOIN FETCH l.guarantors g " +
+            "LEFT JOIN FETCH g.member m " +
+            "WHERE l.financialYear.group.id = :groupId " +
+            "AND l.loanType = :loanType " +
+            "ORDER BY l.createdAt DESC")
+    List<Loan> findByGroupIdAndLoanType(@Param("groupId") UUID groupId, @Param("loanType") LoanType loanType);
+
+    /**
+     * Find loans by external borrower.
+     */
+    @Query("SELECT l FROM Loan l " +
+            "LEFT JOIN FETCH l.externalBorrower eb " +
+            "LEFT JOIN FETCH l.guarantors g " +
+            "LEFT JOIN FETCH g.member m " +
+            "WHERE l.externalBorrower.id = :borrowerId " +
+            "ORDER BY l.createdAt DESC")
+    List<Loan> findByExternalBorrowerId(@Param("borrowerId") UUID borrowerId);
+
+    /**
+     * Find active guaranteed loans.
+     */
+    @Query("SELECT l FROM Loan l " +
+            "LEFT JOIN FETCH l.externalBorrower eb " +
+            "LEFT JOIN FETCH l.guarantors g " +
+            "WHERE l.loanType = 'GUARANTEED' " +
+            "AND l.status IN ('ACTIVE', 'DISBURSED') " +
+            "AND l.financialYear.group.id = :groupId")
+    List<Loan> findActiveGuaranteedLoans(@Param("groupId") UUID groupId);
 }
