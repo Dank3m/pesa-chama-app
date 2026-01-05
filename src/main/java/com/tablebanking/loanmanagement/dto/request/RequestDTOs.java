@@ -296,4 +296,43 @@ public class RequestDTOs {
 
         private String notes;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberRegistrationRequest {
+
+        @NotBlank(message = "Member ID is required")
+        private String memberId;
+
+        @NotBlank(message = "Registration token is required")
+        private String token;
+
+        @NotBlank(message = "Username is required")
+        @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+        private String username;
+
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
+        private String password;
+
+        @NotBlank(message = "Role is required")
+        private String role;
+    }
+
+    /**
+     * Request to resend registration notification
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ResendRegistrationRequest {
+
+        @NotBlank(message = "Member ID is required")
+        private String memberId;
+
+        private String channel; // EMAIL, SMS, or BOTH
+    }
 }

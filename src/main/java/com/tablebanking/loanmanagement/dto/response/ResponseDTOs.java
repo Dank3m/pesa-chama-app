@@ -472,4 +472,26 @@ public class ResponseDTOs {
         private String notes;
         private Instant createdAt;
     }
+/*
+     * Response for validating registration token
+ */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberRegistrationInfoResponse {
+
+        private String memberId;
+        private String memberNumber;
+        private String firstName;
+        private String lastName;
+        private String fullName;
+        private String email;
+        private String phoneNumber;
+        private String groupId;
+        private String groupName;
+        private boolean tokenValid;
+        private String tokenExpiry;
+        private String suggestedRole;
+    }
 }

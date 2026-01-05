@@ -4,17 +4,20 @@ import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.*;
 import com.tablebanking.loanmanagement.entity.enums.*;
+import com.tablebanking.loanmanagement.event.MemberRegistrationEvent;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.errors.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,12 +36,26 @@ public class MemberService {
     private final MemberBalanceRepository balanceRepository;
     private final ContributionRepository contributionRepository;
     private final LoanRepository loanRepository;
+    private final UserRepository userRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
+    @Value("${app.kafka.topics.member-registration:member-registration-events}")
+    private String memberRegistrationTopic;
+
+    @Value("${app.registration.token-expiry-days:7}")
+    private int tokenExpiryDays;
 
     /**
      * Create a new member.
      */
     @CacheEvict(value = "groupMembers", key = "#request.groupId")
+    @Transactional
     public MemberResponse createMember(CreateMemberRequest request) {
+
+        // Validate group exists
         BankingGroup group = groupRepository.findById(request.getGroupId())
                 .orElseThrow(() -> new BusinessException("Banking group not found"));
 
@@ -54,13 +71,16 @@ public class MemberService {
         }
 
         // Validate unique email if provided
-        if (request.getEmail() != null && 
-            memberRepository.existsByGroupIdAndEmail(group.getId(), request.getEmail())) {
+        if (request.getEmail() != null &&
+                memberRepository.existsByGroupIdAndEmail(group.getId(), request.getEmail())) {
             throw new BusinessException("Email already registered in this group");
         }
 
         // Generate member number
         String memberNumber = generateMemberNumber(group.getId());
+
+        // Determine notification channel
+        NotificationChannel channel = determineNotificationChannel(request);
 
         Member member = Member.builder()
                 .group(group)
@@ -75,17 +95,102 @@ public class MemberService {
                 .joinDate(LocalDate.now())
                 .status(MemberStatus.ACTIVE)
                 .isAdmin(request.getIsAdmin() != null ? request.getIsAdmin() : false)
+                .registrationNotificationChannel(channel)
                 .build();
+
+        // Generate registration token
+        member.generateRegistrationToken(tokenExpiryDays);
 
         member = memberRepository.save(member);
 
         // Initialize member balance for current financial year if exists
         initializeMemberBalance(member);
 
-        log.info("Created member: {} ({}) in group: {}", 
+        log.info("Created member: {} ({}) in group: {}",
                 member.getFullName(), member.getMemberNumber(), group.getName());
 
+        // Send registration notification
+        sendRegistrationNotification(member, group);
+
         return mapToMemberResponse(member);
+    }
+
+    /**
+     * Send registration notification via Kafka
+     */
+    private void sendRegistrationNotification(Member member, BankingGroup group) {
+        try {
+            // Create and publish event
+            MemberRegistrationEvent event = MemberRegistrationEvent.create(
+                    member.getId().toString(),
+                    member.getMemberNumber(),
+                    member.getFirstName(),
+                    member.getLastName(),
+                    member.getEmail(),
+                    member.getPhoneNumber(),
+                    group.getId().toString(),
+                    group.getName(),
+                    member.getRegistrationToken(),
+                    baseUrl,
+                    member.getRegistrationNotificationChannel()
+            );
+
+            // Publish to Kafka
+            kafkaTemplate.send(memberRegistrationTopic, member.getId().toString(), event)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("Failed to publish member registration event for member: {}",
+                                    member.getId(), ex);
+                        } else {
+                            log.info("Member registration event published for member: {} to topic: {}",
+                                    member.getId(), memberRegistrationTopic);
+                        }
+                    });
+
+        } catch (Exception e) {
+            log.error("Error sending registration notification for member: {}", member.getId(), e);
+            // Don't fail the member creation if notification fails
+        }
+    }
+
+    /**
+     * Resend registration notification for existing member
+     */
+    @Transactional
+    public void resendRegistrationNotification(UUID memberId, NotificationChannel channel) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found: " + memberId));
+
+        // Check if member already has a user account
+        if (userRepository.findByMemberId(memberId).isPresent()) {
+            throw new BusinessException("Member already has a registered account");
+        }
+
+        // Generate new token (invalidates old one)
+        member.generateRegistrationToken(tokenExpiryDays);
+        member.setRegistrationNotificationChannel(channel);
+        memberRepository.save(member);
+
+        // Send notification
+        sendRegistrationNotification(member, member.getGroup());
+        log.info("Registration notification resent for member: {}", memberId);
+    }
+
+    /**
+     * Determine notification channel based on available contact info
+     */
+    private NotificationChannel determineNotificationChannel(CreateMemberRequest request) {
+        boolean hasEmail = request.getEmail() != null && !request.getEmail().isBlank();
+        boolean hasPhone = request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank();
+
+        if (hasEmail && hasPhone) {
+            return NotificationChannel.BOTH;
+        } else if (hasEmail) {
+            return NotificationChannel.EMAIL;
+        } else if (hasPhone) {
+            return NotificationChannel.SMS;
+        }
+        return NotificationChannel.EMAIL; // Default
     }
 
     /**
@@ -103,15 +208,15 @@ public class MemberService {
             member.setLastName(request.getLastName());
         }
         if (request.getEmail() != null) {
-            if (!request.getEmail().equals(member.getEmail()) && 
-                memberRepository.existsByGroupIdAndEmail(member.getGroup().getId(), request.getEmail())) {
+            if (!request.getEmail().equals(member.getEmail()) &&
+                    memberRepository.existsByGroupIdAndEmail(member.getGroup().getId(), request.getEmail())) {
                 throw new BusinessException("Email already registered in this group");
             }
             member.setEmail(request.getEmail());
         }
         if (request.getPhoneNumber() != null) {
-            if (!request.getPhoneNumber().equals(member.getPhoneNumber()) && 
-                memberRepository.existsByGroupIdAndPhoneNumber(member.getGroup().getId(), request.getPhoneNumber())) {
+            if (!request.getPhoneNumber().equals(member.getPhoneNumber()) &&
+                    memberRepository.existsByGroupIdAndPhoneNumber(member.getGroup().getId(), request.getPhoneNumber())) {
                 throw new BusinessException("Phone number already registered in this group");
             }
             member.setPhoneNumber(request.getPhoneNumber());
@@ -153,7 +258,7 @@ public class MemberService {
         member.setStatus(newStatus);
         member = memberRepository.save(member);
 
-        log.info("Changed member {} status from {} to {}", 
+        log.info("Changed member {} status from {} to {}",
                 member.getMemberNumber(), oldStatus, newStatus);
 
         return mapToMemberResponse(member);
@@ -168,6 +273,15 @@ public class MemberService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException("Member not found"));
         return mapToMemberResponse(member);
+    }
+
+    /**
+     * Get member entity by ID (for internal use).
+     */
+    @Transactional(readOnly = true)
+    public Member getMemberEntityById(UUID memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException("Member not found"));
     }
 
     /**
@@ -240,7 +354,7 @@ public class MemberService {
     @Transactional(readOnly = true)
     public PageResponse<MemberResponse> getMembersByGroupPaginated(UUID groupId, Pageable pageable) {
         Page<Member> page = memberRepository.findByGroupId(groupId, pageable);
-        
+
         List<MemberResponse> content = page.getContent().stream()
                 .map(this::mapToMemberResponse)
                 .collect(Collectors.toList());
@@ -292,7 +406,7 @@ public class MemberService {
 
     private String generateMemberNumber(UUID groupId) {
         int maxNumber = memberRepository.getMaxMemberNumber(groupId);
-        return String.format("MEM%04d", maxNumber + 1);
+        return String.format("PESA-%03d", maxNumber + 1);
     }
 
     private void initializeMemberBalance(Member member) {

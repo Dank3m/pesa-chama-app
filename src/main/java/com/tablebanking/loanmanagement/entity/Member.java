@@ -1,12 +1,15 @@
 package com.tablebanking.loanmanagement.entity;
 
 import com.tablebanking.loanmanagement.entity.enums.MemberStatus;
+import com.tablebanking.loanmanagement.entity.enums.NotificationChannel;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "members")
@@ -58,6 +61,24 @@ public class Member extends BaseEntity {
     @Builder.Default
     private Boolean isAdmin = false;
 
+    // ==================== REGISTRATION TOKEN FIELDS ====================
+
+    @Column(name = "registration_token", length = 64)
+    private String registrationToken;
+
+    @Column(name = "registration_token_expiry")
+    private LocalDateTime registrationTokenExpiry;
+
+    @Column(name = "registration_token_used")
+    @Builder.Default
+    private Boolean registrationTokenUsed = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "registration_notification_channel", length = 10)
+    private NotificationChannel registrationNotificationChannel;
+
+    // ==================== RELATIONSHIPS ====================
+
     @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private User user;
 
@@ -73,11 +94,54 @@ public class Member extends BaseEntity {
     @Builder.Default
     private List<MemberBalance> balances = new ArrayList<>();
 
+    // ==================== HELPER METHODS ====================
+
     public String getFullName() {
         return firstName + " " + lastName;
     }
 
     public boolean isActive() {
         return status == MemberStatus.ACTIVE;
+    }
+
+    /**
+     * Generate and set a new registration token
+     */
+    public void generateRegistrationToken(int expiryDays) {
+        this.registrationToken = UUID.randomUUID().toString().replace("-", "") +
+                UUID.randomUUID().toString().replace("-", "").substring(0, 32);
+        this.registrationTokenExpiry = LocalDateTime.now().plusDays(expiryDays);
+        this.registrationTokenUsed = false;
+    }
+
+    /**
+     * Check if registration token is valid (exists, not used, not expired)
+     */
+    public boolean isRegistrationTokenValid() {
+        return registrationToken != null
+                && !Boolean.TRUE.equals(registrationTokenUsed)
+                && registrationTokenExpiry != null
+                && LocalDateTime.now().isBefore(registrationTokenExpiry);
+    }
+
+    /**
+     * Check if provided token matches and is valid
+     */
+    public boolean isRegistrationTokenValid(String token) {
+        return isRegistrationTokenValid() && registrationToken.equals(token);
+    }
+
+    /**
+     * Mark registration token as used
+     */
+    public void markRegistrationTokenUsed() {
+        this.registrationTokenUsed = true;
+    }
+
+    /**
+     * Build registration link
+     */
+    public String getRegistrationLink(String baseUrl) {
+        return String.format("%s/register?memberId=%s&token=%s", baseUrl, getId(), registrationToken);
     }
 }

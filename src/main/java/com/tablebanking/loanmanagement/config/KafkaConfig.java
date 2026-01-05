@@ -21,6 +21,9 @@ public class KafkaConfig {
     @Value("${app.kafka.topics.notification-events:notification-events}")
     private String notificationEventsTopic;
 
+    @Value("${app.kafka.topics.member-registration:member-registration-events}")
+    private String memberRegistrationEventsTopic;
+
     @Bean
     public NewTopic contributionEventsTopic() {
         return TopicBuilder.name(contributionEventsTopic)
@@ -48,6 +51,14 @@ public class KafkaConfig {
     @Bean
     public NewTopic notificationEventsTopic() {
         return TopicBuilder.name(notificationEventsTopic)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic memberRegistrationEventsTopic() {
+        return TopicBuilder.name(memberRegistrationEventsTopic)
                 .partitions(3)
                 .replicas(1)
                 .build();

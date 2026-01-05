@@ -50,6 +50,6 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     boolean existsByGroupIdAndEmail(UUID groupId, String email);
 
-    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(m.memberNumber, 4) AS integer)), 0) FROM Member m WHERE m.group.id = :groupId")
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(m.memberNumber, 6) AS integer)), 0) FROM Member m WHERE m.group.id = :groupId")
     int getMaxMemberNumber(@Param("groupId") UUID groupId);
 }
