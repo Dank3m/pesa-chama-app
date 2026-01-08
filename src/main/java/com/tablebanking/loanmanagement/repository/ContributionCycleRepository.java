@@ -47,4 +47,11 @@ public interface ContributionCycleRepository extends JpaRepository<ContributionC
             "AND MONTH(cc.cycleMonth) = MONTH(CURRENT_DATE) " +
             "ORDER BY cc.cycleMonth DESC")
     Optional<ContributionCycle> findLatestOpenCycleByGroupId(@Param("groupId") UUID groupId);
+
+    // Find current open cycle by group
+    @Query("SELECT c FROM ContributionCycle c " +
+            "WHERE c.financialYear.group.id = :groupId " +
+            "AND c.status = 'OPEN' " +
+            "ORDER BY c.cycleMonth DESC")
+    Optional<ContributionCycle> findCurrentByGroup(@Param("groupId") UUID groupId);
 }

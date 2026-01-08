@@ -52,4 +52,10 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(m.memberNumber, 6) AS integer)), 0) FROM Member m WHERE m.group.id = :groupId")
     int getMaxMemberNumber(@Param("groupId") UUID groupId);
+
+    // Count active members by group
+    @Query("SELECT COUNT(m) FROM Member m " +
+            "WHERE m.group.id = :groupId " +
+            "AND m.status = 'ACTIVE'")
+    int countActiveByGroup(@Param("groupId") UUID groupId);
 }

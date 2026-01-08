@@ -25,6 +25,8 @@ public class JacksonConfig {
         // Write dates as ISO strings, not timestamps
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
         return mapper;
     }
 }

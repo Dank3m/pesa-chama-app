@@ -64,4 +64,41 @@ public interface ContributionRepository extends JpaRepository<Contribution, UUID
     List<Contribution> findByMemberIdAndFinancialYearId(
             @Param("memberId") UUID memberId,
             @Param("financialYearId") UUID financialYearId);
+
+    // Sum paid contributions by group and financial year
+    @Query("SELECT COALESCE(SUM(c.paidAmount), 0) FROM Contribution c " +
+            "WHERE c.member.group.id = :groupId " +
+            "AND (:yearId IS NULL OR c.cycle.financialYear.id = :yearId)")
+    BigDecimal sumPaidByGroupAndYear(@Param("groupId") UUID groupId, @Param("yearId") UUID yearId);
+
+    // Sum paid contributions by member
+    @Query("SELECT COALESCE(SUM(c.paidAmount), 0) FROM Contribution c " +
+            "WHERE c.member.id = :memberId")
+    BigDecimal sumPaidByMember(@Param("memberId") UUID memberId);
+
+    // Sum expected contributions by cycle
+    @Query("SELECT COALESCE(SUM(c.expectedAmount), 0) FROM Contribution c " +
+            "WHERE c.cycle.id = :cycleId")
+    BigDecimal sumExpectedByCycle(@Param("cycleId") UUID cycleId);
+
+    // Sum paid contributions by cycle
+    @Query("SELECT COALESCE(SUM(c.paidAmount), 0) FROM Contribution c " +
+            "WHERE c.cycle.id = :cycleId")
+    BigDecimal sumPaidByCycle(@Param("cycleId") UUID cycleId);
+
+    // Sum paid contributions by group and month (using paymentDate)
+    @Query("SELECT COALESCE(SUM(c.paidAmount), 0) FROM Contribution c " +
+            "WHERE c.member.group.id = :groupId " +
+            "AND EXTRACT(YEAR FROM c.paymentDate) = :year " +
+            "AND EXTRACT(MONTH FROM c.paymentDate) = :month")
+    BigDecimal sumPaidByGroupAndMonth(@Param("groupId") UUID groupId,
+                                      @Param("year") int year,
+                                      @Param("month") int month);
+
+    // Find recent paid contributions by group
+    @Query("SELECT c FROM Contribution c " +
+            "WHERE c.member.group.id = :groupId " +
+            "AND c.paidAmount > 0 " +
+            "ORDER BY c.paymentDate DESC")
+    List<Contribution> findRecentPaidByGroup(@Param("groupId") UUID groupId, Pageable pageable);
 }

@@ -2,6 +2,13 @@ package com.tablebanking.loanmanagement.controller;
 
 import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
+import com.tablebanking.loanmanagement.entity.Contribution;
+import com.tablebanking.loanmanagement.entity.ContributionCycle;
+import com.tablebanking.loanmanagement.entity.enums.ContributionStatus;
+import com.tablebanking.loanmanagement.entity.enums.CycleStatus;
+import com.tablebanking.loanmanagement.exception.BusinessException;
+import com.tablebanking.loanmanagement.repository.ContributionCycleRepository;
+import com.tablebanking.loanmanagement.repository.ContributionRepository;
 import com.tablebanking.loanmanagement.service.ContributionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +32,8 @@ import java.util.UUID;
 public class ContributionController {
 
     private final ContributionService contributionService;
+    private final ContributionRepository contributionRepository;
+    private final ContributionCycleRepository cycleRepository;
 
     @PostMapping("/record")
     @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
@@ -137,5 +148,85 @@ public class ContributionController {
             @PathVariable UUID financialYearId) {
         List<ContributionResponse> contributions = contributionService.getContributionsByMemberForYear(memberId, financialYearId);
         return ResponseEntity.ok(ApiResponse.success(contributions));
+    }
+
+    @GetMapping("/cycles/{cycleId}/summary")
+    @Operation(summary = "Get contribution cycle summary with payment statistics")
+    public ResponseEntity<ApiResponse<CycleSummaryResponse>> getCycleSummary(
+            @PathVariable UUID cycleId) {
+
+        ContributionCycle cycle = cycleRepository.findById(cycleId)
+                .orElseThrow(() -> new BusinessException("Contribution cycle not found"));
+
+        // Count contributions by status
+        long paidCount = contributionRepository.countByCycleIdAndStatus(cycleId, ContributionStatus.PAID);
+        long partialCount = contributionRepository.countByCycleIdAndStatus(cycleId, ContributionStatus.PARTIAL);
+        long pendingCount = contributionRepository.countByCycleIdAndStatus(cycleId, ContributionStatus.PENDING);
+        long defaultedCount = contributionRepository.countByCycleIdAndStatus(cycleId, ContributionStatus.DEFAULTED);
+
+        // Calculate totals
+        BigDecimal totalExpected = contributionRepository.sumExpectedByCycle(cycleId);
+        BigDecimal totalCollected = contributionRepository.sumPaidByCycle(cycleId);
+
+        totalExpected = totalExpected != null ? totalExpected : BigDecimal.ZERO;
+        totalCollected = totalCollected != null ? totalCollected : BigDecimal.ZERO;
+
+        CycleSummaryResponse response = CycleSummaryResponse.builder()
+                .cycleId(cycleId)
+                .cycleMonth(cycle.getCycleMonth())
+                .totalExpected(totalExpected)
+                .totalCollected(totalCollected)
+                .outstandingAmount(totalExpected.subtract(totalCollected))
+                .paidCount((int) paidCount)
+                .partialCount((int) partialCount)
+                .pendingCount((int) pendingCount)
+                .defaultedCount((int) defaultedCount)
+                .collectionRate(totalExpected.compareTo(BigDecimal.ZERO) > 0
+                        ? totalCollected.divide(totalExpected, 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100))
+                        .setScale(2, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Cycle summary retrieved", response));
+    }
+
+    private ContributionCycleResponse mapToCycleResponse(ContributionCycle cycle) {
+        return ContributionCycleResponse.builder()
+                .id(cycle.getId())
+                .cycleMonth(cycle.getCycleMonth())
+                .dueDate(cycle.getDueDate())
+                .expectedAmount(cycle.getExpectedAmount())
+                .totalCollected(cycle.getTotalCollected())
+                .status(cycle.getStatus())
+                .build();
+    }
+
+    @PostMapping("/cycles/{cycleId}/initialize")
+    @Operation(summary = "Initialize contribution records for all active members in a cycle")
+    public ResponseEntity<ApiResponse<InitializeCycleResponse>> initializeCycleContributions(
+            @PathVariable UUID cycleId) {
+
+        ContributionCycle cycle = cycleRepository.findById(cycleId)
+                .orElseThrow(() -> new BusinessException("Contribution cycle not found"));
+
+        if (cycle.getStatus() != CycleStatus.OPEN) {
+            throw new BusinessException("Cannot initialize contributions for a closed cycle");
+        }
+
+        List<Contribution> contributions = contributionService.initializeCycleContributions(cycle);
+
+        InitializeCycleResponse response = InitializeCycleResponse.builder()
+                .cycleId(cycleId)
+                .cycleMonth(cycle.getCycleMonth())
+                .contributionsCreated(contributions.size())
+                .expectedAmountPerMember(cycle.getExpectedAmount())
+                .totalExpected(cycle.getExpectedAmount().multiply(BigDecimal.valueOf(contributions.size())))
+                .message(contributions.isEmpty()
+                        ? "All active members already have contribution records"
+                        : contributions.size() + " contribution records created")
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success("Cycle contributions initialized", response));
     }
 }

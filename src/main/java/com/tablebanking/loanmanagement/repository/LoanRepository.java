@@ -109,4 +109,51 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
             "AND l.status IN ('ACTIVE', 'DISBURSED') " +
             "AND l.financialYear.group.id = :groupId")
     List<Loan> findActiveGuaranteedLoans(@Param("groupId") UUID groupId);
+
+    // Sum disbursed loan amounts by group and financial year (using principalAmount as disbursement)
+    @Query("SELECT COALESCE(SUM(l.principalAmount), 0) FROM Loan l " +
+            "WHERE l.member.group.id = :groupId " +
+            "AND l.status NOT IN ('PENDING', 'REJECTED') " +
+            "AND (:yearId IS NULL OR l.financialYear.id = :yearId)")
+    BigDecimal sumDisbursedByGroupAndYear(@Param("groupId") UUID groupId, @Param("yearId") UUID yearId);
+
+    // Sum disbursed loan amounts by group and month
+    @Query("SELECT COALESCE(SUM(l.principalAmount), 0) FROM Loan l " +
+            "WHERE l.member.group.id = :groupId " +
+            "AND l.status NOT IN ('PENDING', 'REJECTED') " +
+            "AND EXTRACT(YEAR FROM l.disbursementDate) = :year " +
+            "AND EXTRACT(MONTH FROM l.disbursementDate) = :month")
+    BigDecimal sumDisbursedByGroupAndMonth(@Param("groupId") UUID groupId,
+                                           @Param("year") int year,
+                                           @Param("month") int month);
+
+    // Sum total interest accrued by group
+    @Query("SELECT COALESCE(SUM(l.totalInterestAccrued), 0) FROM Loan l " +
+            "WHERE l.member.group.id = :groupId")
+    BigDecimal sumInterestByGroup(@Param("groupId") UUID groupId);
+
+    // Count active loans by group
+    @Query("SELECT COUNT(l) FROM Loan l " +
+            "WHERE l.member.group.id = :groupId " +
+            "AND l.status IN ('ACTIVE', 'DISBURSED', 'OVERDUE')")
+    int countActiveByGroup(@Param("groupId") UUID groupId);
+
+    // Count active loans by member
+    @Query("SELECT COUNT(l) FROM Loan l " +
+            "WHERE l.member.id = :memberId " +
+            "AND l.status IN ('ACTIVE', 'DISBURSED', 'OVERDUE')")
+    int countActiveByMember(@Param("memberId") UUID memberId);
+
+    // Sum outstanding balance by member
+    @Query("SELECT COALESCE(SUM(l.outstandingBalance), 0) FROM Loan l " +
+            "WHERE l.member.id = :memberId " +
+            "AND l.status IN ('ACTIVE', 'DISBURSED', 'OVERDUE')")
+    BigDecimal sumOutstandingByMember(@Param("memberId") UUID memberId);
+
+    // Find recent disbursed loans by group
+    @Query("SELECT l FROM Loan l " +
+            "WHERE l.member.group.id = :groupId " +
+            "AND l.status NOT IN ('PENDING', 'REJECTED') " +
+            "ORDER BY l.disbursementDate DESC")
+    List<Loan> findRecentDisbursedByGroup(@Param("groupId") UUID groupId, Pageable pageable);
 }

@@ -343,4 +343,24 @@ public class AuthController {
                 .member(memberResponse)
                 .build();
     }
+
+    /**
+     * Get current authenticated user's profile
+     */
+    @GetMapping("/me")
+    @Operation(summary = "Get current user profile")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new BusinessException("Not authenticated");
+        }
+
+        User user = userRepository.findByUsernameWithMember(userDetails.getUsername())
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        log.debug("Fetching profile for user: {}", userDetails.getUsername());
+
+        return ResponseEntity.ok(ApiResponse.success("User profile retrieved", mapToUserResponse(user)));
+    }
 }

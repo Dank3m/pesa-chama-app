@@ -1,5 +1,6 @@
 package com.tablebanking.loanmanagement.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.tablebanking.loanmanagement.entity.enums.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -110,6 +111,7 @@ public class ResponseDTOs {
         private UUID memberId;
         private String memberName;
         private UUID cycleId;
+        @JsonFormat(pattern = "yyyy-MM-dd")
         private LocalDate cycleMonth;
         private BigDecimal expectedAmount;
         private BigDecimal paidAmount;
@@ -245,17 +247,17 @@ public class ResponseDTOs {
         private String description;
     }
 
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DashboardResponse {
-        private GroupSummary groupSummary;
-        private FinancialYearSummary currentYearSummary;
-        private ContributionCycleSummary currentCycleSummary;
-        private List<MemberBalanceResponse> topContributors;
-        private List<LoanSummaryResponse> recentLoans;
-    }
+//    @Data
+//    @Builder
+//    @NoArgsConstructor
+//    @AllArgsConstructor
+//    public static class DashboardResponse {
+//        private GroupSummary groupSummary;
+//        private FinancialYearSummary currentYearSummary;
+//        private ContributionCycleSummary currentCycleSummary;
+//        private List<MemberBalanceResponse> topContributors;
+//        private List<LoanSummaryResponse> recentLoans;
+//    }
 
     @Data
     @Builder
@@ -309,6 +311,23 @@ public class ResponseDTOs {
         private String tokenType;
         private Long expiresIn;
         private UserResponse user;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CycleSummaryResponse {
+        private UUID cycleId;
+        private LocalDate cycleMonth;
+        private BigDecimal totalExpected;
+        private BigDecimal totalCollected;
+        private BigDecimal outstandingAmount;
+        private int paidCount;
+        private int partialCount;
+        private int pendingCount;
+        private int defaultedCount;
+        private BigDecimal collectionRate;
     }
 
     @Data
@@ -493,5 +512,80 @@ public class ResponseDTOs {
         private boolean tokenValid;
         private String tokenExpiry;
         private String suggestedRole;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DashboardResponse {
+        private BigDecimal totalBalance;
+        private BigDecimal totalContributions;
+        private int activeLoans;
+        private int memberCount;
+        private BigDecimal collectionRate;
+        private List<MonthlyActivityDTO> monthlyActivity;
+        private List<FundAllocationDTO> fundAllocation;
+        private List<TransactionDTO> recentTransactions;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberDashboardResponse {
+        private UUID memberId;
+        private String memberName;
+        private BigDecimal totalContributions;
+        private BigDecimal outstandingLoans;
+        private int activeLoansCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MonthlyActivityDTO {
+        private String name;        // "Jan", "Feb", etc.
+        private String month;       // "2025-01"
+        private BigDecimal contributions;
+        private BigDecimal disbursements;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FundAllocationDTO {
+        private String name;        // "Loans Disbursed", "Interest Earned", etc.
+        private int value;          // Percentage
+        private String fill;        // Color hex
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TransactionDTO {
+        private String id;
+        private String type;        // "CONTRIBUTION", "DISBURSEMENT"
+        private BigDecimal amount;
+        private String date;
+        private String description;
+        private String memberName;
+        private String category;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InitializeCycleResponse {
+        private UUID cycleId;
+        private LocalDate cycleMonth;
+        private int contributionsCreated;
+        private BigDecimal expectedAmountPerMember;
+        private BigDecimal totalExpected;
+        private String message;
     }
 }
