@@ -5,6 +5,7 @@ import com.tablebanking.loanmanagement.entity.enums.TransactionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,7 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+public interface TransactionRepository extends JpaRepository<Transaction, UUID>, JpaSpecificationExecutor<Transaction> {
 
     Optional<Transaction> findByTransactionNumber(String transactionNumber);
 
@@ -58,4 +59,37 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByReference(
             @Param("refType") String referenceType,
             @Param("refId") UUID referenceId);
+
+    // Filter by group and debit/credit
+    Page<Transaction> findByGroupIdAndDebitCredit(UUID groupId, String debitCredit, Pageable pageable);
+
+    // Filter by group and transaction type
+    Page<Transaction> findByGroupIdAndTransactionType(UUID groupId, TransactionType transactionType, Pageable pageable);
+
+    // Filter by group, debit/credit and transaction type
+    @Query("SELECT t FROM Transaction t WHERE t.group.id = :groupId " +
+            "AND t.debitCredit = :debitCredit AND t.transactionType = :transactionType")
+    Page<Transaction> findByGroupIdAndDebitCreditAndTransactionType(
+            @Param("groupId") UUID groupId,
+            @Param("debitCredit") String debitCredit,
+            @Param("transactionType") TransactionType transactionType,
+            Pageable pageable);
+
+    // Filter by member and debit/credit
+    Page<Transaction> findByMemberIdAndDebitCredit(UUID memberId, String debitCredit, Pageable pageable);
+
+    // Filter by member and transaction type
+    Page<Transaction> findByMemberIdAndTransactionType(UUID memberId, TransactionType transactionType, Pageable pageable);
+
+    // Filter by member, debit/credit and transaction type
+    @Query("SELECT t FROM Transaction t WHERE t.member.id = :memberId " +
+            "AND t.debitCredit = :debitCredit AND t.transactionType = :transactionType")
+    Page<Transaction> findByMemberIdAndDebitCreditAndTransactionType(
+            @Param("memberId") UUID memberId,
+            @Param("debitCredit") String debitCredit,
+            @Param("transactionType") TransactionType transactionType,
+            Pageable pageable);
+
+    // Count by financial year
+    long countByFinancialYearId(UUID financialYearId);
 }

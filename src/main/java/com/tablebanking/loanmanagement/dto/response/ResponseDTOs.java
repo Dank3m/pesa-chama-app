@@ -231,21 +231,21 @@ public class ResponseDTOs {
         private Instant lastCalculatedAt;
     }
 
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class TransactionResponse {
-        private UUID id;
-        private String transactionNumber;
-        private UUID memberId;
-        private String memberName;
-        private TransactionType transactionType;
-        private Instant transactionDate;
-        private BigDecimal amount;
-        private String debitCredit;
-        private String description;
-    }
+//    @Data
+//    @Builder
+//    @NoArgsConstructor
+//    @AllArgsConstructor
+//    public static class TransactionResponse {
+//        private UUID id;
+//        private String transactionNumber;
+//        private UUID memberId;
+//        private String memberName;
+//        private TransactionType transactionType;
+//        private Instant transactionDate;
+//        private BigDecimal amount;
+//        private String debitCredit;
+//        private String description;
+//    }
 
 //    @Data
 //    @Builder
@@ -587,5 +587,39 @@ public class ResponseDTOs {
         private BigDecimal expectedAmountPerMember;
         private BigDecimal totalExpected;
         private String message;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TransactionResponse {
+        private UUID id;
+        private String transactionNumber;
+        private UUID groupId;
+        private UUID memberId;
+        private String memberName;
+        private TransactionType transactionType;
+        private Instant transactionDate;
+        private BigDecimal amount;
+        private String debitCredit;  // "CREDIT" or "DEBIT"
+        private String description;
+        private String referenceType;
+        private UUID referenceId;
+        private Instant createdAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PagedResponse<T> {
+        private List<T> content;
+        private int page;
+        private int size;
+        private long totalElements;
+        private int totalPages;
+        private boolean first;
+        private boolean last;
     }
 }

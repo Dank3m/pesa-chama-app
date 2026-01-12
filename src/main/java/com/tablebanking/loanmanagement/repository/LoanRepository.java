@@ -56,8 +56,12 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
            "WHERE l.financialYear.id = :yearId")
     BigDecimal getTotalInterestEarnedByYear(@Param("yearId") UUID financialYearId);
 
-    @Query("SELECT l FROM Loan l WHERE l.status IN ('DISBURSED', 'ACTIVE') " +
-           "AND l.disbursementDate <= :date")
+    @Query("SELECT l FROM Loan l " +
+            "LEFT JOIN FETCH l.member m " +
+            "LEFT JOIN FETCH m.group " +
+            "LEFT JOIN FETCH l.financialYear " +
+            "WHERE l.status IN ('DISBURSED', 'ACTIVE') " +
+            "AND l.disbursementDate <= :date")
     List<Loan> findLoansForInterestAccrual(@Param("date") LocalDate date);
 
     @Query("SELECT l FROM Loan l WHERE l.expectedEndDate < :date " +
