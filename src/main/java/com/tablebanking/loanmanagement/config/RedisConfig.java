@@ -23,6 +23,20 @@ import java.util.Map;
 @EnableCaching
 public class RedisConfig {
 
+    /**
+     * Create ObjectMapper with Java 8 date/time support
+     */
+    private ObjectMapper createObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.activateDefaultTyping(
+                mapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL
+        );
+        return mapper;
+    }
+
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -33,15 +47,7 @@ public class RedisConfig {
         template.setHashKeySerializer(new StringRedisSerializer());
 
         // Use JSON serializer with Java 8 date support for values
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mapper.activateDefaultTyping(
-                mapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL
-        );
-
-        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(mapper);
+        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(createObjectMapper());
         template.setValueSerializer(jsonSerializer);
         template.setHashValueSerializer(jsonSerializer);
 
@@ -51,35 +57,38 @@ public class RedisConfig {
 
     @Bean
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        // Create serializer with properly configured ObjectMapper
+        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(createObjectMapper());
+
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofHours(1))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair
                         .fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()))
+                        .fromSerializer(jsonSerializer))  // Use configured serializer
                 .disableCachingNullValues();
 
         // Configure specific cache TTLs
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-        
+
         // Member cache - 30 minutes
         cacheConfigurations.put("member", defaultConfig.entryTtl(Duration.ofMinutes(30)));
-        
+
         // Group members cache - 30 minutes
         cacheConfigurations.put("groupMembers", defaultConfig.entryTtl(Duration.ofMinutes(30)));
-        
+
         // Loan cache - 15 minutes
         cacheConfigurations.put("loan", defaultConfig.entryTtl(Duration.ofMinutes(15)));
-        
+
         // Member loans cache - 15 minutes
         cacheConfigurations.put("memberLoans", defaultConfig.entryTtl(Duration.ofMinutes(15)));
-        
+
         // Member balance cache - 10 minutes
         cacheConfigurations.put("memberBalance", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-        
+
         // Cycle contributions cache - 10 minutes
         cacheConfigurations.put("cycleContributions", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-        
+
         // Financial year cache - 1 hour
         cacheConfigurations.put("financialYear", defaultConfig.entryTtl(Duration.ofHours(1)));
 
