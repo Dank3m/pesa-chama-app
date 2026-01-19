@@ -94,7 +94,7 @@ public class DashboardService {
     }
 
     private List<FundAllocationDTO> getFundAllocation(BigDecimal contributions, BigDecimal disbursements, BigDecimal interest) {
-        BigDecimal total = contributions.add(interest);
+        BigDecimal total = contributions.add(interest).add(disbursements);
         if (total.compareTo(BigDecimal.ZERO) == 0) {
             return List.of(
                     new FundAllocationDTO("Loans Disbursed", 40, "#2D60FF"),

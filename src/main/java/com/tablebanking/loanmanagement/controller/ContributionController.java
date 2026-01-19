@@ -60,6 +60,15 @@ public class ContributionController {
         return ResponseEntity.ok(ApiResponse.success(contributions));
     }
 
+    @GetMapping("/group/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Get all contributions by group (Admin/Treasurer only)")
+    public ResponseEntity<ApiResponse<List<ContributionResponse>>> getContributionsByGroup(
+            @PathVariable UUID groupId) {
+        List<ContributionResponse> contributions = contributionService.getContributionsByGroup(groupId);
+        return ResponseEntity.ok(ApiResponse.success(contributions));
+    }
+
     @GetMapping("/cycle/{cycleId}")
     @Operation(summary = "Get all contributions for a cycle")
     public ResponseEntity<ApiResponse<List<ContributionResponse>>> getContributionsByCycle(

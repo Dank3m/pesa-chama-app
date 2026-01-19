@@ -149,6 +149,17 @@ public class RequestDTOs {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class RejectLoanRequest {
+        @NotNull(message = "Loan ID is required")
+        private UUID loanId;
+
+        private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CreateFinancialYearRequest {
         @NotNull(message = "Group ID is required")
         private UUID groupId;
@@ -334,5 +345,136 @@ public class RequestDTOs {
         private String memberId;
 
         private String channel; // EMAIL, SMS, or BOTH
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateExpenseRequest {
+        @NotNull(message = "Group ID is required")
+        private UUID groupId;
+
+        @NotBlank(message = "Category is required")
+        private String category;
+
+        @NotNull(message = "Amount is required")
+        @DecimalMin(value = "0.01", message = "Amount must be positive")
+        private BigDecimal amount;
+
+        @NotNull(message = "Expense date is required")
+        private LocalDate expenseDate;
+
+        @NotBlank(message = "Description is required")
+        @Size(max = 255, message = "Description must not exceed 255 characters")
+        private String description;
+
+        @Size(max = 100, message = "Vendor name must not exceed 100 characters")
+        private String vendor;
+
+        @Size(max = 50, message = "Receipt number must not exceed 50 characters")
+        private String receiptNumber;
+
+        private UUID loanId; // Optional: link to related loan
+
+        private String notes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateExpenseRequest {
+        @NotNull(message = "Expense ID is required")
+        private UUID expenseId;
+
+        private String category;
+
+        @DecimalMin(value = "0.01", message = "Amount must be positive")
+        private BigDecimal amount;
+
+        private LocalDate expenseDate;
+
+        @Size(max = 255, message = "Description must not exceed 255 characters")
+        private String description;
+
+        @Size(max = 100, message = "Vendor name must not exceed 100 characters")
+        private String vendor;
+
+        @Size(max = 50, message = "Receipt number must not exceed 50 characters")
+        private String receiptNumber;
+
+        private UUID loanId;
+
+        private String notes;
+    }
+
+    // ==================== SETTINGS DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateProfileRequest {
+        @Size(max = 50, message = "First name must not exceed 50 characters")
+        private String firstName;
+
+        @Size(max = 50, message = "Last name must not exceed 50 characters")
+        private String lastName;
+
+        @Email(message = "Invalid email format")
+        private String email;
+
+        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
+        private String phoneNumber;
+
+        private String address;
+
+        @Past(message = "Date of birth must be in the past")
+        private LocalDate dateOfBirth;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateUserSettingsRequest {
+        @Size(min = 3, max = 3, message = "Currency code must be 3 characters")
+        private String currency;
+
+        @Size(max = 50, message = "Timezone must not exceed 50 characters")
+        private String timezone;
+
+        private Boolean notifyDigitalPayment;
+        private Boolean notifyRecommendations;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ChangePasswordRequest {
+        @NotBlank(message = "Current password is required")
+        private String currentPassword;
+
+        @NotBlank(message = "New password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
+        @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).*$",
+                message = "Password must contain uppercase, lowercase, and number")
+        private String newPassword;
+
+        @NotBlank(message = "Confirm password is required")
+        private String confirmPassword;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Toggle2FARequest {
+        @NotNull(message = "Enabled status is required")
+        private Boolean enabled;
+
+        private String password;
     }
 }

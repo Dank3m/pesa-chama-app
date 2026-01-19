@@ -101,4 +101,12 @@ public interface ContributionRepository extends JpaRepository<Contribution, UUID
             "AND c.paidAmount > 0 " +
             "ORDER BY c.paymentDate DESC")
     List<Contribution> findRecentPaidByGroup(@Param("groupId") UUID groupId, Pageable pageable);
+
+    // Find all contributions by group
+    @Query("SELECT c FROM Contribution c " +
+            "JOIN FETCH c.member m " +
+            "JOIN FETCH c.cycle cycle " +
+            "WHERE m.group.id = :groupId " +
+            "ORDER BY cycle.cycleMonth DESC, m.lastName ASC")
+    List<Contribution> findByGroupId(@Param("groupId") UUID groupId);
 }

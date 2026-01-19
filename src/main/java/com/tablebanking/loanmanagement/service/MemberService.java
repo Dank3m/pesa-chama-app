@@ -402,6 +402,30 @@ public class MemberService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get member statistics for a group.
+     */
+    @Transactional(readOnly = true)
+    public MemberStatsResponse getMemberStats(UUID groupId) {
+        long total = memberRepository.findByGroupId(groupId).size();
+        long active = memberRepository.countByGroupIdAndStatus(groupId, MemberStatus.ACTIVE);
+        long inactive = memberRepository.countByGroupIdAndStatus(groupId, MemberStatus.INACTIVE);
+        long suspended = memberRepository.countByGroupIdAndStatus(groupId, MemberStatus.SUSPENDED);
+        long left = memberRepository.countByGroupIdAndStatus(groupId, MemberStatus.LEFT);
+        long admins = memberRepository.findByGroupId(groupId).stream()
+                .filter(m -> Boolean.TRUE.equals(m.getIsAdmin()))
+                .count();
+
+        return MemberStatsResponse.builder()
+                .total(total)
+                .active(active)
+                .inactive(inactive)
+                .suspended(suspended)
+                .left(left)
+                .admins(admins)
+                .build();
+    }
+
     // Private helper methods
 
     private String generateMemberNumber(UUID groupId) {

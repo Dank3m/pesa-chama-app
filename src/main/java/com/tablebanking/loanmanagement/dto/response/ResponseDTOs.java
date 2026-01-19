@@ -81,6 +81,7 @@ public class ResponseDTOs {
         private BigDecimal totalContributions;
         private BigDecimal totalLoansDisbursed;
         private BigDecimal totalInterestEarned;
+        private BigDecimal totalExpenses;
         private Instant createdAt;
     }
 
@@ -545,6 +546,31 @@ public class ResponseDTOs {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class MemberLoanStatsResponse {
+        private UUID memberId;
+        private BigDecimal totalOutstanding;
+        private int activeLoansCount;
+        private BigDecimal totalBorrowed;
+        private BigDecimal totalRepaid;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DisbursementStatsResponse {
+        private int pendingCount;
+        private BigDecimal pendingAmount;
+        private int approvedCount;
+        private BigDecimal approvedAmount;
+        private BigDecimal totalDisbursed;
+        private int activeLoansCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MonthlyActivityDTO {
         private String name;        // "Jan", "Feb", etc.
         private String month;       // "2025-01"
@@ -621,5 +647,97 @@ public class ResponseDTOs {
         private int totalPages;
         private boolean first;
         private boolean last;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExpenseResponse {
+        private UUID id;
+        private UUID groupId;
+        private UUID financialYearId;
+        private String yearName;
+        private String category;
+        private BigDecimal amount;
+        private LocalDate expenseDate;
+        private String description;
+        private String vendor;
+        private String receiptNumber;
+        private UUID loanId;
+        private String loanNumber;
+        private String notes;
+        private UUID createdBy;
+        private Instant createdAt;
+        private Instant updatedAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExpenseSummaryResponse {
+        private UUID groupId;
+        private UUID financialYearId;
+        private BigDecimal totalExpenses;
+        private int expenseCount;
+        private BigDecimal transactionFees;
+        private BigDecimal agmExpenses;
+        private BigDecimal administrativeExpenses;
+        private BigDecimal otherExpenses;
+    }
+
+    // ==================== SETTINGS RESPONSE DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProfileResponse {
+        private UUID id;
+        private String firstName;
+        private String lastName;
+        private String fullName;
+        private String email;
+        private String phoneNumber;
+        private String address;
+        private LocalDate dateOfBirth;
+        private String memberNumber;
+        private UUID groupId;
+        private String groupName;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserSettingsResponse {
+        private UUID id;
+        private String currency;
+        private String timezone;
+        private Boolean notifyDigitalPayment;
+        private Boolean notifyRecommendations;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SecuritySettingsResponse {
+        private Boolean twoFactorEnabled;
+        private Instant lastLogin;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberStatsResponse {
+        private long total;
+        private long active;
+        private long inactive;
+        private long suspended;
+        private long left;
+        private long admins;
     }
 }

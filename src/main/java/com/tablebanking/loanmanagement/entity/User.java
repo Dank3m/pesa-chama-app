@@ -44,6 +44,13 @@ public class User extends BaseEntity {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    @Column(name = "two_factor_enabled", nullable = false)
+    @Builder.Default
+    private Boolean twoFactorEnabled = false;
+
+    @Column(name = "two_factor_secret", length = 64)
+    private String twoFactorSecret;
+
     public boolean isAccountLocked() {
         return lockedUntil != null && Instant.now().isBefore(lockedUntil);
     }

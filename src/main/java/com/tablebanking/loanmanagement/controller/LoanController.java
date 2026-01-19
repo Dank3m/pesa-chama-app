@@ -57,6 +57,20 @@ public class LoanController {
         return ResponseEntity.ok(ApiResponse.success("Loan disbursed", loan));
     }
 
+    @PostMapping("/{loanId}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Reject a pending loan")
+    public ResponseEntity<ApiResponse<LoanResponse>> rejectLoan(
+            @PathVariable UUID loanId,
+            @RequestBody(required = false) RejectLoanRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        String reason = request != null ? request.getReason() : null;
+        // In real implementation, get user ID from security context
+        LoanResponse loan = loanService.rejectLoan(loanId, reason, null);
+        return ResponseEntity.ok(ApiResponse.success("Loan rejected", loan));
+    }
+
     @PostMapping("/repay")
     @Operation(summary = "Make a loan repayment")
     public ResponseEntity<ApiResponse<LoanRepaymentResponse>> makeRepayment(
@@ -96,11 +110,51 @@ public class LoanController {
         return ResponseEntity.ok(ApiResponse.success(loans));
     }
 
+    @GetMapping("/member/{memberId}/stats")
+    @Operation(summary = "Get loan statistics for a member (for dashboard stat cards)")
+    public ResponseEntity<ApiResponse<MemberLoanStatsResponse>> getMemberLoanStats(
+            @PathVariable UUID memberId) {
+        MemberLoanStatsResponse stats = loanService.getMemberLoanStats(memberId);
+        return ResponseEntity.ok(ApiResponse.success(stats));
+    }
+
     @GetMapping("/overdue")
     @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
     @Operation(summary = "Get all overdue loans")
     public ResponseEntity<ApiResponse<List<LoanResponse>>> getOverdueLoans() {
         List<LoanResponse> loans = loanService.getOverdueLoans();
         return ResponseEntity.ok(ApiResponse.success(loans));
+    }
+
+    @GetMapping("/group/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Get loans by group with optional status filter")
+    public ResponseEntity<ApiResponse<List<LoanResponse>>> getLoansByGroup(
+            @PathVariable UUID groupId,
+            @RequestParam(required = false) String status) {
+        com.tablebanking.loanmanagement.entity.enums.LoanStatus loanStatus = null;
+        if (status != null && !status.isBlank()) {
+            loanStatus = com.tablebanking.loanmanagement.entity.enums.LoanStatus.valueOf(status.toUpperCase());
+        }
+        List<LoanResponse> loans = loanService.getLoansByGroupAndStatus(groupId, loanStatus);
+        return ResponseEntity.ok(ApiResponse.success(loans));
+    }
+
+    @GetMapping("/group/{groupId}/pending-approved")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Get pending and approved loans for disbursement workflow")
+    public ResponseEntity<ApiResponse<List<LoanResponse>>> getPendingAndApprovedLoans(
+            @PathVariable UUID groupId) {
+        List<LoanResponse> loans = loanService.getPendingAndApprovedLoans(groupId);
+        return ResponseEntity.ok(ApiResponse.success(loans));
+    }
+
+    @GetMapping("/group/{groupId}/disbursement-stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+    @Operation(summary = "Get disbursement statistics for a group")
+    public ResponseEntity<ApiResponse<DisbursementStatsResponse>> getDisbursementStats(
+            @PathVariable UUID groupId) {
+        DisbursementStatsResponse stats = loanService.getDisbursementStats(groupId);
+        return ResponseEntity.ok(ApiResponse.success(stats));
     }
 }

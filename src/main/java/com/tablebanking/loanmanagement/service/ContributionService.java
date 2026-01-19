@@ -381,6 +381,16 @@ public class ContributionService {
     }
 
     /**
+     * Get all contributions by group.
+     */
+    @Transactional(readOnly = true)
+    public List<ContributionResponse> getContributionsByGroup(UUID groupId) {
+        return contributionRepository.findByGroupId(groupId).stream()
+                .map(this::mapToContributionResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get contributions by cycle.
      */
     @Transactional(readOnly = true)

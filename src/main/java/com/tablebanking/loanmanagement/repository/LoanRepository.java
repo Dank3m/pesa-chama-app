@@ -154,6 +154,17 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
             "AND l.status IN ('ACTIVE', 'DISBURSED', 'OVERDUE')")
     BigDecimal sumOutstandingByMember(@Param("memberId") UUID memberId);
 
+    // Sum total borrowed (principal) by member - all time
+    @Query("SELECT COALESCE(SUM(l.principalAmount), 0) FROM Loan l " +
+            "WHERE l.member.id = :memberId " +
+            "AND l.status NOT IN ('PENDING', 'REJECTED')")
+    BigDecimal sumTotalBorrowedByMember(@Param("memberId") UUID memberId);
+
+    // Sum total repaid by member - all time
+    @Query("SELECT COALESCE(SUM(l.totalAmountPaid), 0) FROM Loan l " +
+            "WHERE l.member.id = :memberId")
+    BigDecimal sumTotalRepaidByMember(@Param("memberId") UUID memberId);
+
     // Find recent disbursed loans by group
     @Query("SELECT l FROM Loan l " +
             "WHERE l.member.group.id = :groupId " +

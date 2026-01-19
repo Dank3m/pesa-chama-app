@@ -82,6 +82,13 @@ public class MemberController {
         return ResponseEntity.ok(ApiResponse.success(members));
     }
 
+    @GetMapping("/group/{groupId}/stats")
+    @Operation(summary = "Get member statistics for a group")
+    public ResponseEntity<ApiResponse<MemberStatsResponse>> getMemberStats(@PathVariable UUID groupId) {
+        MemberStatsResponse stats = memberService.getMemberStats(groupId);
+        return ResponseEntity.ok(ApiResponse.success(stats));
+    }
+
     @GetMapping("/group/{groupId}/paginated")
     @Operation(summary = "Get members with pagination")
     public ResponseEntity<ApiResponse<PageResponse<MemberResponse>>> getMembersPaginated(

@@ -8,5 +8,6 @@ public enum TransactionType {
     PENALTY,
     DIVIDEND,
     WITHDRAWAL,
-    ADJUSTMENT
+    ADJUSTMENT,
+    EXPENSE
 }

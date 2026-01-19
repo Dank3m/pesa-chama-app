@@ -148,6 +148,32 @@ public class LoanService {
     }
 
     /**
+     * Reject a pending loan.
+     */
+    @CacheEvict(value = {"memberLoans", "memberBalance"}, allEntries = true)
+    public LoanResponse rejectLoan(UUID loanId, String reason, UUID rejectedBy) {
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new BusinessException("Loan not found"));
+
+        if (loan.getStatus() != LoanStatus.PENDING) {
+            throw new BusinessException("Only pending loans can be rejected");
+        }
+
+        loan.setStatus(LoanStatus.REJECTED);
+        if (reason != null && !reason.isBlank()) {
+            loan.setNotes(loan.getNotes() != null ? loan.getNotes() + "\nRejection reason: " + reason : "Rejection reason: " + reason);
+        }
+
+        loan = loanRepository.save(loan);
+
+        publishLoanEvent(loan, "LOAN_REJECTED");
+
+        log.info("Loan rejected: {}", loan.getLoanNumber());
+
+        return mapToLoanResponse(loan);
+    }
+
+    /**
      * Disburse an approved loan.
      */
     @CacheEvict(value = {"memberLoans", "memberBalance"}, allEntries = true)
@@ -428,6 +454,92 @@ public class LoanService {
         return loanRepository.findOverdueLoans(LocalDate.now()).stream()
                 .map(this::mapToLoanResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get loans by group with optional status filtering.
+     */
+    @Transactional(readOnly = true)
+    public List<LoanResponse> getLoansByGroupAndStatus(UUID groupId, LoanStatus status) {
+        List<Loan> loans;
+        if (status != null) {
+            loans = loanRepository.findByMemberGroupIdAndStatus(groupId, status);
+        } else {
+            loans = loanRepository.findActiveLoansByGroupId(groupId);
+        }
+        return loans.stream()
+                .map(this::mapToLoanResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get pending and approved loans for disbursement workflow.
+     */
+    @Transactional(readOnly = true)
+    public List<LoanResponse> getPendingAndApprovedLoans(UUID groupId) {
+        List<Loan> pendingLoans = loanRepository.findByMemberGroupIdAndStatus(groupId, LoanStatus.PENDING);
+        List<Loan> approvedLoans = loanRepository.findByMemberGroupIdAndStatus(groupId, LoanStatus.APPROVED);
+
+        List<Loan> combined = new java.util.ArrayList<>(pendingLoans);
+        combined.addAll(approvedLoans);
+
+        return combined.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .map(this::mapToLoanResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get disbursement summary stats for a group.
+     */
+    @Transactional(readOnly = true)
+    public DisbursementStatsResponse getDisbursementStats(UUID groupId) {
+        List<Loan> pendingLoans = loanRepository.findByMemberGroupIdAndStatus(groupId, LoanStatus.PENDING);
+        List<Loan> approvedLoans = loanRepository.findByMemberGroupIdAndStatus(groupId, LoanStatus.APPROVED);
+
+        BigDecimal totalPendingAmount = pendingLoans.stream()
+                .map(Loan::getPrincipalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalApprovedAmount = approvedLoans.stream()
+                .map(Loan::getPrincipalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalDisbursed = loanRepository.sumDisbursedByGroupAndYear(groupId, null);
+        int activeLoansCount = loanRepository.countActiveByGroup(groupId);
+
+        return DisbursementStatsResponse.builder()
+                .pendingCount(pendingLoans.size())
+                .pendingAmount(totalPendingAmount)
+                .approvedCount(approvedLoans.size())
+                .approvedAmount(totalApprovedAmount)
+                .totalDisbursed(totalDisbursed)
+                .activeLoansCount(activeLoansCount)
+                .build();
+    }
+
+    /**
+     * Get loan statistics for a member (for dashboard stat cards).
+     */
+    @Transactional(readOnly = true)
+    public MemberLoanStatsResponse getMemberLoanStats(UUID memberId) {
+        // Verify member exists
+        if (!memberRepository.existsById(memberId)) {
+            throw new BusinessException("Member not found");
+        }
+
+        BigDecimal totalOutstanding = loanRepository.sumOutstandingByMember(memberId);
+        int activeLoansCount = loanRepository.countActiveByMember(memberId);
+        BigDecimal totalBorrowed = loanRepository.sumTotalBorrowedByMember(memberId);
+        BigDecimal totalRepaid = loanRepository.sumTotalRepaidByMember(memberId);
+
+        return MemberLoanStatsResponse.builder()
+                .memberId(memberId)
+                .totalOutstanding(totalOutstanding)
+                .activeLoansCount(activeLoansCount)
+                .totalBorrowed(totalBorrowed)
+                .totalRepaid(totalRepaid)
+                .build();
     }
 
     // Private helper methods

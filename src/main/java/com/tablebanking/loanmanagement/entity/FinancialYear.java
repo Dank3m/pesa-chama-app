@@ -50,6 +50,10 @@ public class FinancialYear extends BaseEntity {
     @Builder.Default
     private BigDecimal totalInterestEarned = BigDecimal.ZERO;
 
+    @Column(name = "total_expenses", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal totalExpenses = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "financialYear", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ContributionCycle> contributionCycles = new ArrayList<>();
@@ -73,5 +77,9 @@ public class FinancialYear extends BaseEntity {
 
     public void addInterestEarned(BigDecimal amount) {
         this.totalInterestEarned = this.totalInterestEarned.add(amount);
+    }
+
+    public void addExpense(BigDecimal amount) {
+        this.totalExpenses = this.totalExpenses.add(amount);
     }
 }
