@@ -36,6 +36,7 @@ public class GuaranteedLoanService {
     private final FinancialYearRepository financialYearRepository;
     private final TransactionRepository transactionRepository;
     private final BankingGroupRepository groupRepository;
+    private final FeatureGateService featureGateService;
 
     @Value("${app.loan.interest-rate:0.10}")
     private BigDecimal defaultInterestRate;
@@ -49,6 +50,9 @@ public class GuaranteedLoanService {
      * Register a new external borrower.
      */
     public ExternalBorrowerResponse createExternalBorrower(CreateExternalBorrowerRequest request) {
+        // Check if external loans feature is available for this group's subscription
+        featureGateService.requireFeature(request.getGroupId(), "externalLoans");
+
         BankingGroup group = groupRepository.findById(request.getGroupId())
                 .orElseThrow(() -> new BusinessException("Group not found"));
 
@@ -126,6 +130,9 @@ public class GuaranteedLoanService {
         // Validate external borrower
         ExternalBorrower borrower = externalBorrowerRepository.findById(request.getExternalBorrowerId())
                 .orElseThrow(() -> new BusinessException("External borrower not found"));
+
+        // Check if external loans feature is available for this group's subscription
+        featureGateService.requireFeature(borrower.getGroup().getId(), "externalLoans");
 
         if (borrower.getStatus() != ExternalBorrowerStatus.ACTIVE) {
             throw new BusinessException("External borrower is not active. Status: " + borrower.getStatus());

@@ -171,4 +171,10 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
             "AND l.status NOT IN ('PENDING', 'REJECTED') " +
             "ORDER BY l.disbursementDate DESC")
     List<Loan> findRecentDisbursedByGroup(@Param("groupId") UUID groupId, Pageable pageable);
+
+    // Get total outstanding balance by group
+    @Query("SELECT COALESCE(SUM(l.outstandingBalance), 0) FROM Loan l " +
+            "WHERE l.member.group.id = :groupId " +
+            "AND l.status IN ('ACTIVE', 'DISBURSED', 'OVERDUE')")
+    BigDecimal getTotalOutstandingByGroupId(@Param("groupId") UUID groupId);
 }

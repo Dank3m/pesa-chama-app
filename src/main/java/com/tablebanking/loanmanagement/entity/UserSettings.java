@@ -3,6 +3,8 @@ package com.tablebanking.loanmanagement.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "user_settings")
 @Getter
@@ -31,4 +33,7 @@ public class UserSettings extends BaseEntity {
     @Column(name = "notify_recommendations", nullable = false)
     @Builder.Default
     private Boolean notifyRecommendations = true;
+
+    @Column(name = "default_group_id")
+    private UUID defaultGroupId;
 }

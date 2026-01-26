@@ -109,4 +109,9 @@ public interface ContributionRepository extends JpaRepository<Contribution, UUID
             "WHERE m.group.id = :groupId " +
             "ORDER BY cycle.cycleMonth DESC, m.lastName ASC")
     List<Contribution> findByGroupId(@Param("groupId") UUID groupId);
+
+    // Get total contributions by group
+    @Query("SELECT COALESCE(SUM(c.paidAmount), 0) FROM Contribution c " +
+            "WHERE c.member.group.id = :groupId")
+    BigDecimal getTotalContributionsByGroupId(@Param("groupId") UUID groupId);
 }

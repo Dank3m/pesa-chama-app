@@ -26,10 +26,26 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     Optional<Member> findByGroupIdAndPhoneNumber(UUID groupId, String phoneNumber);
 
+    Optional<Member> findByGroupIdAndNationalId(UUID groupId, String nationalId);
+
+    Optional<Member> findByGroupIdAndEmail(UUID groupId, String email);
+
+    /**
+     * @deprecated Use findByGroupIdAndPhoneNumber instead to prevent cross-group account mixing
+     */
+    @Deprecated
     Optional<Member> findByPhoneNumber(String phoneNumber);
 
+    /**
+     * @deprecated Use findByGroupIdAndNationalId instead to prevent cross-group account mixing
+     */
+    @Deprecated
     Optional<Member> findByNationalId(String nationalId);
 
+    /**
+     * @deprecated Use findByGroupIdAndMemberNumber instead to prevent cross-group account mixing
+     */
+    @Deprecated
     Optional<Member> findByMemberNumber(String memberNumber);
 
     @Query("SELECT m FROM Member m WHERE m.group.id = :groupId AND m.status = 'ACTIVE'")
@@ -58,4 +74,16 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
             "WHERE m.group.id = :groupId " +
             "AND m.status = 'ACTIVE'")
     int countActiveByGroup(@Param("groupId") UUID groupId);
+
+    // Count all members by group
+    @Query("SELECT COUNT(m) FROM Member m WHERE m.group.id = :groupId")
+    int countByGroupId(@Param("groupId") UUID groupId);
+
+    // Find all members with same email across all groups (for multi-group support)
+    @Query("SELECT m FROM Member m JOIN FETCH m.group WHERE m.email = :email AND m.status = 'ACTIVE'")
+    List<Member> findAllByEmailWithGroup(@Param("email") String email);
+
+    // Check if email exists in multiple groups
+    @Query("SELECT COUNT(DISTINCT m.group.id) FROM Member m WHERE m.email = :email AND m.status = 'ACTIVE'")
+    int countGroupsByEmail(@Param("email") String email);
 }

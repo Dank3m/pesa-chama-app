@@ -312,6 +312,22 @@ public class ResponseDTOs {
         private String tokenType;
         private Long expiresIn;
         private UserResponse user;
+        private List<GroupMembershipResponse> availableGroups;
+        private UUID defaultGroupId;
+        private Boolean hasMultipleGroups;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GroupMembershipResponse {
+        private UUID groupId;
+        private String groupName;
+        private UUID memberId;
+        private String memberNumber;
+        private String role;
+        private Boolean isDefault;
     }
 
     @Data
@@ -739,5 +755,238 @@ public class ResponseDTOs {
         private long suspended;
         private long left;
         private long admins;
+    }
+
+    // ==================== PUBLIC REGISTRATION & GROUP SETTINGS DTOs ====================
+
+    /**
+     * Response for public registration with group creation.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RegistrationResponse {
+        private String accessToken;
+        private String refreshToken;
+        private String tokenType;
+        private Long expiresIn;
+        private UserResponse user;
+        private GroupResponse group;
+        private GroupSettingsResponse groupSettings;
+    }
+
+    /**
+     * Complete group settings response.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GroupSettingsResponse {
+        private UUID id;
+        private UUID groupId;
+        private String groupName;
+
+        // Financial Year Settings
+        private Integer financialYearStartMonth;
+        private Integer financialYearEndMonth;
+
+        // Contribution Settings
+        private BigDecimal defaultContributionAmount;
+        private String currency;
+        private Boolean allowPartialContributions;
+
+        // Loan Settings
+        private BigDecimal interestRate;
+        private String interestRatePeriod;
+        private String interestCalculationMethod;
+        private Integer maxLoanDurationMonths;
+        private Integer gracePeriodDays;
+        private BigDecimal maxLoanMultiplier;
+        private Boolean requireGuarantors;
+        private Integer minGuarantors;
+
+        // Scheduler Settings
+        private String contributionCheckCron;
+        private String interestAccrualCron;
+        private String overdueCheckCron;
+        private Integer reminderDaysBeforeDue;
+
+        // Penalty Settings
+        private BigDecimal latePenaltyRate;
+        private Boolean enablePenalties;
+
+        private Instant createdAt;
+        private Instant updatedAt;
+    }
+
+    /**
+     * Summary of all groups for SUPER_ADMIN dashboard.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AllGroupsSummaryResponse {
+        private int totalGroups;
+        private int activeGroups;
+        private int totalMembers;
+        private int activeMembers;
+        private BigDecimal totalContributions;
+        private BigDecimal totalLoansOutstanding;
+        private List<GroupSummaryItem> groups;
+    }
+
+    /**
+     * Individual group summary for super admin view.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GroupSummaryItem {
+        private UUID id;
+        private String name;
+        private Boolean isActive;
+        private int memberCount;
+        private int activeMemberCount;
+        private BigDecimal contributionAmount;
+        private BigDecimal interestRate;
+        private String currency;
+        private BigDecimal totalContributions;
+        private BigDecimal totalLoansOutstanding;
+        private Instant createdAt;
+    }
+
+    // ==================== SUBSCRIPTION & BILLING DTOs ====================
+
+    /**
+     * Subscription plan details.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubscriptionPlanResponse {
+        private UUID id;
+        private String name;
+        private String displayName;
+        private String description;
+        private BigDecimal price;
+        private String currency;
+        private String billingPeriod;
+        private Integer maxMembers;
+        private Boolean unlimitedMembers;
+        private java.util.Map<String, Boolean> features;
+        private Integer sortOrder;
+        private Boolean isCurrentPlan;
+    }
+
+    /**
+     * Group's current subscription status.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GroupSubscriptionResponse {
+        private UUID id;
+        private UUID groupId;
+        private String groupName;
+        private SubscriptionPlanResponse plan;
+        private String status;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private Boolean autoRenew;
+        private Boolean isGrandfathered;
+        private Boolean isExpiringSoon;
+        private Integer daysUntilExpiry;
+        private Instant createdAt;
+    }
+
+    /**
+     * Payment initiation response.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PaymentInitiationResponse {
+        private String paymentNumber;
+        private String paymentMethod;
+        private BigDecimal amount;
+        private String currency;
+        private String status;
+
+        // M-Pesa specific
+        private String checkoutRequestId;
+        private String merchantRequestId;
+
+        // Bank transfer specific
+        private String bankAccountNumber;
+        private String bankName;
+        private String paymentReference;
+        private String instructions;
+
+        // Card payment specific
+        private String checkoutUrl;
+        private String clientSecret;
+    }
+
+    /**
+     * Subscription payment record.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubscriptionPaymentResponse {
+        private UUID id;
+        private String paymentNumber;
+        private UUID subscriptionId;
+        private String planName;
+        private BigDecimal amount;
+        private String currency;
+        private String paymentMethod;
+        private String paymentReference;
+        private String status;
+        private String paidByName;
+        private Instant paidAt;
+        private LocalDate periodStart;
+        private LocalDate periodEnd;
+        private String failureReason;
+        private Instant createdAt;
+    }
+
+    /**
+     * Feature access check response.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FeatureAccessResponse {
+        private String feature;
+        private Boolean hasAccess;
+        private String currentPlan;
+        private String requiredPlan;
+        private String message;
+    }
+
+    /**
+     * Subscription overview for billing page.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubscriptionOverviewResponse {
+        private GroupSubscriptionResponse currentSubscription;
+        private List<SubscriptionPlanResponse> availablePlans;
+        private List<SubscriptionPaymentResponse> recentPayments;
+        private Integer currentMemberCount;
+        private Integer maxMembersAllowed;
+        private Boolean canAddMoreMembers;
     }
 }

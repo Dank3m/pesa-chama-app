@@ -44,6 +44,7 @@ public class LoanService {
     private final TransactionRepository transactionRepository;
     private final InterestCalculationService interestCalculationService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final FeatureGateService featureGateService;
 
     @Value("${app.loan.default-interest-rate:0.10}")
     private BigDecimal defaultInterestRate;
@@ -62,6 +63,9 @@ public class LoanService {
     public LoanResponse applyForLoan(LoanApplicationRequest request) {
         Member member = memberRepository.findById(request.getMemberId())
                 .orElseThrow(() -> new BusinessException("Member not found"));
+
+        // Check if loans feature is available for this group's subscription
+        featureGateService.requireFeature(member.getGroup().getId(), "loans");
 
         if (!member.isActive()) {
             throw new BusinessException("Only active members can apply for loans");

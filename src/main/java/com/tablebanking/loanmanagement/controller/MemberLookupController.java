@@ -32,39 +32,43 @@ public class MemberLookupController {
     private final ContributionCycleRepository cycleRepository;
 
     /**
-     * Look up member by various identifiers
+     * Look up member by various identifiers.
+     * IMPORTANT: groupId is required to prevent cross-group account mixing.
      */
     @GetMapping("/lookup")
-    @Operation(summary = "Look up member by identifier")
+    @Operation(summary = "Look up member by identifier within a group")
     public ResponseEntity<MemberFinancialStatus> lookupMember(
+            @RequestParam UUID groupId,
             @RequestParam(required = false) String idNumber,
             @RequestParam(required = false) String phoneNumber,
             @RequestParam(required = false) UUID memberId,
             @RequestParam(required = false) String identifier) {
-        
-        log.info("Member lookup: idNumber={}, phoneNumber={}, memberId={}, identifier={}",
-                idNumber, phoneNumber, memberId, identifier);
+
+        log.info("Member lookup: groupId={}, idNumber={}, phoneNumber={}, memberId={}, identifier={}",
+                groupId, idNumber, phoneNumber, memberId, identifier);
 
         Member member = null;
 
-        // Find by ID number
+        // Find by ID number within group
         if (idNumber != null && !idNumber.isBlank()) {
-            member = memberRepository.findByNationalId(idNumber).orElse(null);
+            member = memberRepository.findByGroupIdAndNationalId(groupId, idNumber).orElse(null);
         }
-        // Find by phone number
+        // Find by phone number within group
         else if (phoneNumber != null && !phoneNumber.isBlank()) {
             String normalizedPhone = normalizePhoneNumber(phoneNumber);
-            member = memberRepository.findByPhoneNumber(normalizedPhone).orElse(null);
+            member = memberRepository.findByGroupIdAndPhoneNumber(groupId, normalizedPhone).orElse(null);
         }
-        // Find by member ID
+        // Find by member ID (verify it belongs to the group)
         else if (memberId != null) {
-            member = memberRepository.findById(memberId).orElse(null);
+            member = memberRepository.findById(memberId)
+                    .filter(m -> m.getGroup().getId().equals(groupId))
+                    .orElse(null);
         }
-        // Find by generic identifier (try all)
+        // Find by generic identifier within group (try all)
         else if (identifier != null && !identifier.isBlank()) {
-            member = memberRepository.findByNationalId(identifier)
-                    .or(() -> memberRepository.findByPhoneNumber(normalizePhoneNumber(identifier)))
-                    .or(() -> memberRepository.findByMemberNumber(identifier))
+            member = memberRepository.findByGroupIdAndNationalId(groupId, identifier)
+                    .or(() -> memberRepository.findByGroupIdAndPhoneNumber(groupId, normalizePhoneNumber(identifier)))
+                    .or(() -> memberRepository.findByGroupIdAndMemberNumber(groupId, identifier))
                     .orElse(null);
         }
 

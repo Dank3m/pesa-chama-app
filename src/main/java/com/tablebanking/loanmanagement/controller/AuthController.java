@@ -4,13 +4,16 @@ import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.Member;
 import com.tablebanking.loanmanagement.entity.User;
+import com.tablebanking.loanmanagement.entity.UserSettings;
 import com.tablebanking.loanmanagement.entity.enums.NotificationChannel;
 import com.tablebanking.loanmanagement.entity.enums.UserRole;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.MemberRepository;
 import com.tablebanking.loanmanagement.repository.UserRepository;
+import com.tablebanking.loanmanagement.repository.UserSettingsRepository;
 import com.tablebanking.loanmanagement.security.JwtService;
 import com.tablebanking.loanmanagement.service.MemberService;
+import com.tablebanking.loanmanagement.service.RegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,6 +29,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,10 +43,12 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
+    private final UserSettingsRepository userSettingsRepository;
     private final MemberService memberService;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsService userDetailsService;
+    private final RegistrationService registrationService;
 
     @PostMapping("/login")
     @Operation(summary = "Authenticate user and get JWT token")
@@ -61,12 +68,53 @@ public class AuthController {
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
 
+        // Check for multi-group membership by email
+        List<GroupMembershipResponse> availableGroups = new ArrayList<>();
+        UUID defaultGroupId = null;
+        boolean hasMultipleGroups = false;
+
+        Member primaryMember = user.getMember();
+        if (primaryMember != null && primaryMember.getEmail() != null) {
+            List<Member> membersWithSameEmail = memberRepository.findAllByEmailWithGroup(primaryMember.getEmail());
+
+            if (membersWithSameEmail.size() > 1) {
+                hasMultipleGroups = true;
+
+                // Get user's default group setting
+                UserSettings settings = userSettingsRepository.findByUserId(user.getId()).orElse(null);
+                defaultGroupId = settings != null ? settings.getDefaultGroupId() : null;
+
+                // If no default set, use the primary member's group
+                if (defaultGroupId == null) {
+                    defaultGroupId = primaryMember.getGroup().getId();
+                }
+
+                // Build available groups list
+                for (Member m : membersWithSameEmail) {
+                    availableGroups.add(GroupMembershipResponse.builder()
+                            .groupId(m.getGroup().getId())
+                            .groupName(m.getGroup().getName())
+                            .memberId(m.getId())
+                            .memberNumber(m.getMemberNumber())
+                            .role(m.getIsAdmin() ? "ADMIN" : "MEMBER")
+                            .isDefault(m.getGroup().getId().equals(defaultGroupId))
+                            .build());
+                }
+
+                log.info("User {} has access to {} groups via email {}",
+                        user.getUsername(), membersWithSameEmail.size(), primaryMember.getEmail());
+            }
+        }
+
         AuthResponse authResponse = AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .expiresIn(jwtService.getJwtExpiration())
                 .user(mapToUserResponse(user))
+                .availableGroups(availableGroups.isEmpty() ? null : availableGroups)
+                .defaultGroupId(defaultGroupId)
+                .hasMultipleGroups(hasMultipleGroups)
                 .build();
 
         log.info("User logged in: {}", request.getUsername());
@@ -110,6 +158,24 @@ public class AuthController {
         log.info("User registered: {} for member: {}", user.getUsername(), member.getMemberNumber());
 
         return ResponseEntity.ok(ApiResponse.success("Registration successful", mapToUserResponse(user)));
+    }
+
+    // ==================== PUBLIC REGISTRATION ENDPOINT ====================
+
+    @PostMapping("/register/public")
+    @Operation(summary = "Public registration - create user and optionally a new banking group")
+    public ResponseEntity<ApiResponse<RegistrationResponse>> registerPublic(
+            @Valid @RequestBody PublicRegistrationRequest request) {
+
+        log.info("Public registration attempt for username: {}", request.getUsername());
+
+        RegistrationResponse response = registrationService.registerPublic(request);
+
+        log.info("Public registration successful: user={}, group={}",
+                request.getUsername(),
+                response.getGroup() != null ? response.getGroup().getName() : "none");
+
+        return ResponseEntity.ok(ApiResponse.success("Registration successful", response));
     }
 
     // ==================== MEMBER SELF-REGISTRATION ENDPOINTS ====================
@@ -362,5 +428,134 @@ public class AuthController {
         log.debug("Fetching profile for user: {}", userDetails.getUsername());
 
         return ResponseEntity.ok(ApiResponse.success("User profile retrieved", mapToUserResponse(user)));
+    }
+
+    /**
+     * Get all groups the user has access to via email
+     */
+    @GetMapping("/groups")
+    @Operation(summary = "Get all groups user has access to")
+    public ResponseEntity<ApiResponse<List<GroupMembershipResponse>>> getAvailableGroups(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new BusinessException("Not authenticated");
+        }
+
+        User user = userRepository.findByUsernameWithMember(userDetails.getUsername())
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        Member primaryMember = user.getMember();
+        if (primaryMember == null || primaryMember.getEmail() == null) {
+            return ResponseEntity.ok(ApiResponse.success("No groups available", new ArrayList<>()));
+        }
+
+        List<Member> membersWithSameEmail = memberRepository.findAllByEmailWithGroup(primaryMember.getEmail());
+
+        // Get user's default group setting
+        UserSettings settings = userSettingsRepository.findByUserId(user.getId()).orElse(null);
+        UUID defaultGroupId = settings != null ? settings.getDefaultGroupId() : primaryMember.getGroup().getId();
+
+        List<GroupMembershipResponse> groups = new ArrayList<>();
+        for (Member m : membersWithSameEmail) {
+            groups.add(GroupMembershipResponse.builder()
+                    .groupId(m.getGroup().getId())
+                    .groupName(m.getGroup().getName())
+                    .memberId(m.getId())
+                    .memberNumber(m.getMemberNumber())
+                    .role(m.getIsAdmin() ? "ADMIN" : "MEMBER")
+                    .isDefault(m.getGroup().getId().equals(defaultGroupId))
+                    .build());
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Available groups retrieved", groups));
+    }
+
+    /**
+     * Set the default group for user
+     */
+    @PutMapping("/default-group/{groupId}")
+    @Operation(summary = "Set default group for user")
+    public ResponseEntity<ApiResponse<Void>> setDefaultGroup(
+            @PathVariable UUID groupId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new BusinessException("Not authenticated");
+        }
+
+        User user = userRepository.findByUsernameWithMember(userDetails.getUsername())
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        // Verify user has access to this group via email
+        Member primaryMember = user.getMember();
+        if (primaryMember == null || primaryMember.getEmail() == null) {
+            throw new BusinessException("User has no email associated");
+        }
+
+        List<Member> membersWithSameEmail = memberRepository.findAllByEmailWithGroup(primaryMember.getEmail());
+        boolean hasAccessToGroup = membersWithSameEmail.stream()
+                .anyMatch(m -> m.getGroup().getId().equals(groupId));
+
+        if (!hasAccessToGroup) {
+            throw new BusinessException("User does not have access to this group");
+        }
+
+        // Update or create user settings with default group
+        UserSettings settings = userSettingsRepository.findByUserId(user.getId())
+                .orElse(UserSettings.builder().user(user).build());
+
+        settings.setDefaultGroupId(groupId);
+        userSettingsRepository.save(settings);
+
+        log.info("User {} set default group to {}", user.getUsername(), groupId);
+
+        return ResponseEntity.ok(ApiResponse.success("Default group updated", null));
+    }
+
+    /**
+     * Switch to a different group (returns member info for that group)
+     */
+    @GetMapping("/switch-group/{groupId}")
+    @Operation(summary = "Get member info for a specific group")
+    public ResponseEntity<ApiResponse<MemberResponse>> switchGroup(
+            @PathVariable UUID groupId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new BusinessException("Not authenticated");
+        }
+
+        User user = userRepository.findByUsernameWithMember(userDetails.getUsername())
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        // Find member in the specified group by email
+        Member primaryMember = user.getMember();
+        if (primaryMember == null || primaryMember.getEmail() == null) {
+            throw new BusinessException("User has no email associated");
+        }
+
+        List<Member> membersWithSameEmail = memberRepository.findAllByEmailWithGroup(primaryMember.getEmail());
+        Member targetMember = membersWithSameEmail.stream()
+                .filter(m -> m.getGroup().getId().equals(groupId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("User does not have access to this group"));
+
+        MemberResponse memberResponse = MemberResponse.builder()
+                .id(targetMember.getId())
+                .groupId(targetMember.getGroup().getId())
+                .memberNumber(targetMember.getMemberNumber())
+                .firstName(targetMember.getFirstName())
+                .lastName(targetMember.getLastName())
+                .fullName(targetMember.getFullName())
+                .email(targetMember.getEmail())
+                .phoneNumber(targetMember.getPhoneNumber())
+                .status(targetMember.getStatus())
+                .isAdmin(targetMember.getIsAdmin())
+                .build();
+
+        log.info("User {} switched to group {}", user.getUsername(), groupId);
+
+        return ResponseEntity.ok(ApiResponse.success("Switched to group", memberResponse));
     }
 }

@@ -48,11 +48,23 @@ public class SecurityConfig {
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/actuator/info").permitAll()
                     .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
+
+                    // WebSocket endpoints - permit for handshake, auth handled at STOMP level
+                    .requestMatchers("/ws/**").permitAll()
+
+                    // Payment callback endpoints (webhooks from payment providers)
+                    .requestMatchers("/api/v1/billing/callback/**").permitAll()
                     
+                    // Super Admin endpoints (must come before admin endpoints)
+                    .requestMatchers("/api/v1/admin/super/**").hasRole("SUPER_ADMIN")
+
                     // Admin only endpoints
                     .requestMatchers(HttpMethod.POST, "/api/v1/groups/**").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasRole("ADMIN")
-                    .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                    .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+
+                    // Group settings update - Admin, Secretary or Super Admin
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/groups/*/settings").hasAnyRole("ADMIN", "SECRETARY", "SUPER_ADMIN")
                     
                     // Treasurer and Admin endpoints
                     .requestMatchers(HttpMethod.POST, "/api/v1/loans/*/approve").hasAnyRole("ADMIN", "TREASURER")
@@ -71,12 +83,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*")); // Configure as needed
+        // Use allowedOriginPatterns for WebSocket support with credentials
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

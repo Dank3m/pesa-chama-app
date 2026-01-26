@@ -105,10 +105,12 @@ public class MemberController {
         return ResponseEntity.ok(ApiResponse.success(members));
     }
 
-    @GetMapping("/phone/{phoneNumber}")
-    @Operation(summary = "Get member by phone number")
-    public ResponseEntity<ApiResponse<MemberResponse>> getMemberByPhone(@PathVariable String phoneNumber) {
-        MemberResponse member = memberService.getMemberByPhone(phoneNumber);
+    @GetMapping("/group/{groupId}/phone/{phoneNumber}")
+    @Operation(summary = "Get member by phone number within a group")
+    public ResponseEntity<ApiResponse<MemberResponse>> getMemberByPhone(
+            @PathVariable UUID groupId,
+            @PathVariable String phoneNumber) {
+        MemberResponse member = memberService.getMemberByPhone(groupId, phoneNumber);
         return ResponseEntity.ok(ApiResponse.success(member));
     }
 

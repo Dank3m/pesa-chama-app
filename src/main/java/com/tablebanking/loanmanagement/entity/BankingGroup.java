@@ -62,6 +62,13 @@ public class BankingGroup extends BaseEntity {
     @Builder.Default
     private List<FinancialYear> financialYears = new ArrayList<>();
 
+    @OneToOne(mappedBy = "group", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private GroupSettings settings;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_subscription_id")
+    private GroupSubscription currentSubscription;
+
     public void addMember(Member member) {
         members.add(member);
         member.setGroup(this);

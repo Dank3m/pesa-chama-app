@@ -23,4 +23,13 @@ public interface BankingGroupRepository extends JpaRepository<BankingGroup, UUID
     int countActiveMembers(UUID groupId);
 
     boolean existsByNameIgnoreCase(String name);
+
+    @Query("SELECT bg FROM BankingGroup bg LEFT JOIN FETCH bg.settings WHERE bg.id = :id")
+    Optional<BankingGroup> findByIdWithSettings(UUID id);
+
+    @Query("SELECT bg FROM BankingGroup bg LEFT JOIN FETCH bg.settings WHERE bg.isActive = true")
+    List<BankingGroup> findAllActiveWithSettings();
+
+    @Query("SELECT bg FROM BankingGroup bg LEFT JOIN FETCH bg.settings")
+    List<BankingGroup> findAllWithSettings();
 }

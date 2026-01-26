@@ -6,6 +6,7 @@ import com.tablebanking.loanmanagement.entity.BankingGroup;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.BankingGroupRepository;
 import com.tablebanking.loanmanagement.service.FinancialYearService;
+import com.tablebanking.loanmanagement.service.GroupSettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +28,7 @@ public class GroupController {
 
     private final BankingGroupRepository groupRepository;
     private final FinancialYearService financialYearService;
+    private final GroupSettingsService groupSettingsService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -150,7 +152,7 @@ public class GroupController {
 
     private GroupResponse mapToResponse(BankingGroup group) {
         int memberCount = groupRepository.countActiveMembers(group.getId());
-        
+
         return GroupResponse.builder()
                 .id(group.getId())
                 .name(group.getName())
@@ -164,5 +166,25 @@ public class GroupController {
                 .isActive(group.getIsActive())
                 .createdAt(group.getCreatedAt())
                 .build();
+    }
+
+    // ==================== GROUP SETTINGS ENDPOINTS ====================
+
+    @GetMapping("/{groupId}/settings")
+    @Operation(summary = "Get group settings")
+    public ResponseEntity<ApiResponse<GroupSettingsResponse>> getGroupSettings(@PathVariable UUID groupId) {
+        GroupSettingsResponse settings = groupSettingsService.getSettings(groupId);
+        return ResponseEntity.ok(ApiResponse.success(settings));
+    }
+
+    @PutMapping("/{groupId}/settings")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECRETARY', 'SUPER_ADMIN')")
+    @Operation(summary = "Update group settings")
+    public ResponseEntity<ApiResponse<GroupSettingsResponse>> updateGroupSettings(
+            @PathVariable UUID groupId,
+            @Valid @RequestBody UpdateGroupSettingsRequest request) {
+
+        GroupSettingsResponse settings = groupSettingsService.updateSettings(groupId, request);
+        return ResponseEntity.ok(ApiResponse.success("Settings updated", settings));
     }
 }

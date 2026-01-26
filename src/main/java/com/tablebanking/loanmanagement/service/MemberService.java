@@ -371,11 +371,13 @@ public class MemberService {
     }
 
     /**
-     * Get member by phone number.
+     * Get member by phone number within a specific group.
+     * @param groupId The group to search within (required to prevent cross-group mixing)
+     * @param phoneNumber The phone number to search for
      */
     @Transactional(readOnly = true)
-    public MemberResponse getMemberByPhone(String phoneNumber) {
-        Member member = memberRepository.findByPhoneNumber(phoneNumber)
+    public MemberResponse getMemberByPhone(UUID groupId, String phoneNumber) {
+        Member member = memberRepository.findByGroupIdAndPhoneNumber(groupId, phoneNumber)
                 .orElseThrow(() -> new BusinessException("Member not found with phone: " + phoneNumber));
         return mapToMemberResponse(member);
     }
