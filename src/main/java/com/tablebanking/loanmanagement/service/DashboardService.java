@@ -26,6 +26,8 @@ public class DashboardService {
     private final ContributionRepository contributionRepository;
     private final ContributionCycleRepository cycleRepository;
     private final LoanRepository loanRepository;
+    private final LoanRepaymentRepository loanRepaymentRepository;
+    private final ExpenseRepository expenseRepository;
     private final FinancialYearRepository financialYearRepository;
 
     public DashboardResponse getOverview(UUID groupId, UUID financialYearId) {
@@ -33,20 +35,42 @@ public class DashboardService {
                 : financialYearRepository.findCurrentByGroupId(groupId)
                 .map(FinancialYear::getId).orElse(null);
 
+        // Get opening balance from the financial year (brought-forward funds from prior years)
+        BigDecimal openingBalance = fyId != null
+                ? financialYearRepository.findById(fyId)
+                    .map(fy -> orZero(fy.getOpeningBalance()))
+                    .orElse(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
+
         BigDecimal totalContributions = orZero(contributionRepository.sumPaidByGroupAndYear(groupId, fyId));
         BigDecimal totalDisbursements = orZero(loanRepository.sumDisbursedByGroupAndYear(groupId, fyId));
-        BigDecimal totalInterest = orZero(loanRepository.sumInterestByGroup(groupId));
+        BigDecimal totalRepayments = orZero(loanRepaymentRepository.sumRepaymentsByGroupAndYear(groupId, fyId));
+        BigDecimal totalExpenses = fyId != null
+                ? orZero(expenseRepository.sumTotalByFinancialYear(fyId))
+                : BigDecimal.ZERO;
+        BigDecimal outstandingLoans = orZero(loanRepository.getTotalOutstandingByGroupId(groupId));
 
-        BigDecimal totalBalance = totalContributions.add(totalInterest).subtract(totalDisbursements);
+        // Cash balance = opening balance + money in - money out
+        // Money in: contributions + loan repayments
+        // Money out: loan disbursements + expenses
+        BigDecimal totalBalance = openingBalance
+                .add(totalContributions)
+                .add(totalRepayments)
+                .subtract(totalDisbursements)
+                .subtract(totalExpenses);
 
         return DashboardResponse.builder()
                 .totalBalance(totalBalance)
                 .totalContributions(totalContributions)
+                .openingBalance(openingBalance)
+                .totalRepayments(totalRepayments)
+                .totalDisbursements(totalDisbursements)
+                .totalExpenses(totalExpenses)
                 .activeLoans(loanRepository.countActiveByGroup(groupId))
                 .memberCount(memberRepository.countActiveByGroup(groupId))
                 .collectionRate(calculateCollectionRate(groupId))
                 .monthlyActivity(getMonthlyActivity(groupId))
-                .fundAllocation(getFundAllocation(totalContributions, totalDisbursements, totalInterest))
+                .fundAllocation(getFundAllocation(totalBalance, outstandingLoans, totalExpenses))
                 .recentTransactions(getRecentTransactions(groupId, 5))
                 .build();
     }
@@ -93,23 +117,21 @@ public class DashboardService {
         return activity;
     }
 
-    private List<FundAllocationDTO> getFundAllocation(BigDecimal contributions, BigDecimal disbursements, BigDecimal interest) {
-        BigDecimal total = contributions.add(interest).add(disbursements);
-        if (total.compareTo(BigDecimal.ZERO) == 0) {
+    private List<FundAllocationDTO> getFundAllocation(BigDecimal cashBalance, BigDecimal outstandingLoans, BigDecimal expenses) {
+        // Group net worth = cash on hand + outstanding loans (money owed back to group)
+        BigDecimal netWorth = cashBalance.add(outstandingLoans).add(expenses);
+        if (netWorth.compareTo(BigDecimal.ZERO) == 0) {
             return List.of(
-                    new FundAllocationDTO("Loans Disbursed", 40, "#2D60FF"),
-                    new FundAllocationDTO("Interest Earned", 30, "#16DBCC"),
-                    new FundAllocationDTO("Expenses", 15, "#FFBB38"),
-                    new FundAllocationDTO("Available", 15, "#FF82AC")
+                    new FundAllocationDTO("Outstanding Loans", 40, "#2D60FF"),
+                    new FundAllocationDTO("Cash Available", 30, "#16DBCC"),
+                    new FundAllocationDTO("Expenses", 15, "#FFBB38")
             );
         }
 
-        BigDecimal available = total.subtract(disbursements);
         return List.of(
-                new FundAllocationDTO("Loans Disbursed", pct(disbursements, total), "#2D60FF"),
-                new FundAllocationDTO("Interest Earned", pct(interest, total), "#16DBCC"),
-                new FundAllocationDTO("Expenses", 0, "#FFBB38"),
-                new FundAllocationDTO("Available", pct(available, total), "#FF82AC")
+                new FundAllocationDTO("Outstanding Loans", pct(outstandingLoans, netWorth), "#2D60FF"),
+                new FundAllocationDTO("Cash Available", pct(cashBalance, netWorth), "#16DBCC"),
+                new FundAllocationDTO("Expenses", pct(expenses, netWorth), "#FFBB38")
         );
     }
 

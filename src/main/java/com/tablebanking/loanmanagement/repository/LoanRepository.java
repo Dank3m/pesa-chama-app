@@ -32,6 +32,8 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
     List<Loan> findByStatus(LoanStatus status);
     List<Loan> findByMemberGroupIdAndStatus(UUID groupId, LoanStatus status);
 
+    @Query("SELECT l FROM Loan l WHERE l.member.group.id = :groupId ORDER BY l.createdAt DESC")
+    List<Loan> findAllByGroupId(@Param("groupId") UUID groupId);
 
     @Query("SELECT l FROM Loan l WHERE l.status IN ('DISBURSED', 'ACTIVE')")
     List<Loan> findActiveLoans();
@@ -114,17 +116,20 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
             "AND l.financialYear.group.id = :groupId")
     List<Loan> findActiveGuaranteedLoans(@Param("groupId") UUID groupId);
 
-    // Sum disbursed loan amounts by group and financial year (using principalAmount as disbursement)
+    // Sum disbursed loan amounts by group and financial year (excluding CONTRIBUTION_DEFAULT
+    // loans which are internal transfers — the money stays in the group as a contribution)
     @Query("SELECT COALESCE(SUM(l.principalAmount), 0) FROM Loan l " +
             "WHERE l.member.group.id = :groupId " +
             "AND l.status NOT IN ('PENDING', 'REJECTED') " +
+            "AND l.loanType != 'CONTRIBUTION_DEFAULT' " +
             "AND (:yearId IS NULL OR l.financialYear.id = :yearId)")
     BigDecimal sumDisbursedByGroupAndYear(@Param("groupId") UUID groupId, @Param("yearId") UUID yearId);
 
-    // Sum disbursed loan amounts by group and month
+    // Sum disbursed loan amounts by group and month (excluding internal contribution defaults)
     @Query("SELECT COALESCE(SUM(l.principalAmount), 0) FROM Loan l " +
             "WHERE l.member.group.id = :groupId " +
             "AND l.status NOT IN ('PENDING', 'REJECTED') " +
+            "AND l.loanType != 'CONTRIBUTION_DEFAULT' " +
             "AND EXTRACT(YEAR FROM l.disbursementDate) = :year " +
             "AND EXTRACT(MONTH FROM l.disbursementDate) = :month")
     BigDecimal sumDisbursedByGroupAndMonth(@Param("groupId") UUID groupId,

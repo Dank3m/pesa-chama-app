@@ -37,4 +37,9 @@ public interface LoanRepaymentRepository extends JpaRepository<LoanRepayment, UU
             @Param("endDate") Instant endDate);
 
     Optional<LoanRepayment> findByReferenceNumber(String referenceNumber);
+
+    @Query("SELECT COALESCE(SUM(lr.amount), 0) FROM LoanRepayment lr " +
+           "WHERE lr.loan.member.group.id = :groupId " +
+           "AND (:yearId IS NULL OR lr.loan.financialYear.id = :yearId)")
+    BigDecimal sumRepaymentsByGroupAndYear(@Param("groupId") UUID groupId, @Param("yearId") UUID yearId);
 }

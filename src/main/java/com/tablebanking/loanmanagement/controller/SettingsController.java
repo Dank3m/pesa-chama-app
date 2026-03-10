@@ -29,11 +29,14 @@ public class SettingsController {
     // ==================== PROFILE ENDPOINTS ====================
 
     @GetMapping("/profile")
-    @Operation(summary = "Get current user's profile")
+    @Operation(summary = "Get current user's profile for a specific group")
     public ResponseEntity<ApiResponse<ProfileResponse>> getProfile(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) UUID groupId) {
         UUID userId = getUserId(userDetails);
-        ProfileResponse profile = settingsService.getProfile(userId);
+        ProfileResponse profile = groupId != null
+                ? settingsService.getProfileForGroup(userId, groupId)
+                : settingsService.getProfile(userId);
         return ResponseEntity.ok(ApiResponse.success("Profile retrieved", profile));
     }
 

@@ -432,6 +432,17 @@ public class RequestDTOs {
 
         @Past(message = "Date of birth must be in the past")
         private LocalDate dateOfBirth;
+
+        private String preferredDisbursementChannel; // MPESA or BANK
+
+        @Size(max = 30, message = "Bank account number must not exceed 30 characters")
+        private String bankAccountNumber;
+
+        @Size(max = 10, message = "Bank code must not exceed 10 characters")
+        private String bankCode;
+
+        @Size(max = 100, message = "Bank name must not exceed 100 characters")
+        private String bankName;
     }
 
     @Data
@@ -736,5 +747,120 @@ public class RequestDTOs {
     @AllArgsConstructor
     public static class CancelSubscriptionRequest {
         private String reason;
+    }
+
+    // ==================== DISBURSEMENT DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DisburseLoanRequest {
+        private UUID loanId;
+
+        private String disbursementChannel; // MPESA or BANK
+
+        // Optional overrides (if not provided, uses member's profile data)
+        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Invalid phone number format")
+        private String phoneNumber;
+
+        @Size(max = 30, message = "Bank account number must not exceed 30 characters")
+        private String bankAccount;
+
+        @Size(max = 10, message = "Bank code must not exceed 10 characters")
+        private String bankCode;
+    }
+
+    // ==================== INVESTMENT DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateInvestmentRequest {
+        @NotNull(message = "Group ID is required")
+        private UUID groupId;
+
+        @NotBlank(message = "Investment type is required")
+        private String type;
+
+        @NotBlank(message = "Investment name is required")
+        @Size(max = 255, message = "Name must not exceed 255 characters")
+        private String name;
+
+        @Size(max = 255, message = "Description must not exceed 255 characters")
+        private String description;
+
+        @NotNull(message = "Amount is required")
+        @DecimalMin(value = "0.01", message = "Amount must be positive")
+        private BigDecimal amount;
+
+        @DecimalMin(value = "0.00", message = "Current value must not be negative")
+        private BigDecimal currentValue;
+
+        @NotNull(message = "Investment date is required")
+        private LocalDate investmentDate;
+
+        private LocalDate maturityDate;
+
+        @Size(max = 50, message = "Receipt number must not exceed 50 characters")
+        private String receiptNumber;
+
+        private String notes;
+    }
+
+    // ==================== STK PUSH DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StkPushRequest {
+        @NotNull(message = "Source ID is required")
+        private UUID sourceId;
+
+        @NotBlank(message = "Source type is required")
+        private String sourceType; // LOAN_REPAYMENT or CONTRIBUTION
+
+        @NotNull(message = "Amount is required")
+        @DecimalMin(value = "1.00", message = "Amount must be at least 1.00")
+        private BigDecimal amount;
+
+        @NotBlank(message = "Phone number is required")
+        private String phoneNumber;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateInvestmentRequest {
+        @NotNull(message = "Investment ID is required")
+        private UUID investmentId;
+
+        private String type;
+
+        @Size(max = 255, message = "Name must not exceed 255 characters")
+        private String name;
+
+        @Size(max = 255, message = "Description must not exceed 255 characters")
+        private String description;
+
+        @DecimalMin(value = "0.01", message = "Amount must be positive")
+        private BigDecimal amount;
+
+        @DecimalMin(value = "0.00", message = "Current value must not be negative")
+        private BigDecimal currentValue;
+
+        private LocalDate investmentDate;
+
+        private LocalDate maturityDate;
+
+        private String status;
+
+        @Size(max = 50, message = "Receipt number must not exceed 50 characters")
+        private String receiptNumber;
+
+        private String notes;
     }
 }

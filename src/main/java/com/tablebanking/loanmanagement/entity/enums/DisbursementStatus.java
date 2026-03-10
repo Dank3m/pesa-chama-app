@@ -1,8 +1,8 @@
 package com.tablebanking.loanmanagement.entity.enums;
 
-public enum CycleStatus {
-    OPEN,
-    CLOSED,
+public enum DisbursementStatus {
+    PENDING,
     PROCESSING,
-    PENDING
+    COMPLETED,
+    FAILED
 }

@@ -1,5 +1,6 @@
 package com.tablebanking.loanmanagement.entity;
 
+import com.tablebanking.loanmanagement.entity.enums.DisbursementChannel;
 import com.tablebanking.loanmanagement.entity.enums.MemberStatus;
 import com.tablebanking.loanmanagement.entity.enums.NotificationChannel;
 import jakarta.persistence.*;
@@ -76,6 +77,22 @@ public class Member extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "registration_notification_channel", length = 10)
     private NotificationChannel registrationNotificationChannel;
+
+    // ==================== DISBURSEMENT PREFERENCES ====================
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_disbursement_channel", length = 10)
+    @Builder.Default
+    private DisbursementChannel preferredDisbursementChannel = DisbursementChannel.MPESA;
+
+    @Column(name = "bank_account_number", length = 30)
+    private String bankAccountNumber;
+
+    @Column(name = "bank_code", length = 10)
+    private String bankCode;
+
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
 
     // ==================== RELATIONSHIPS ====================
 

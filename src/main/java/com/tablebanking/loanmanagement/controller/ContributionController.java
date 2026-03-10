@@ -61,7 +61,7 @@ public class ContributionController {
     }
 
     @GetMapping("/group/{groupId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
     @Operation(summary = "Get all contributions by group (Admin/Treasurer only)")
     public ResponseEntity<ApiResponse<List<ContributionResponse>>> getContributionsByGroup(
             @PathVariable UUID groupId) {

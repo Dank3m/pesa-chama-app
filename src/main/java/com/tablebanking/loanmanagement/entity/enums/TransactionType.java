@@ -9,5 +9,6 @@ public enum TransactionType {
     DIVIDEND,
     WITHDRAWAL,
     ADJUSTMENT,
-    EXPENSE
+    EXPENSE,
+    INVESTMENT
 }

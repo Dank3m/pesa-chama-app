@@ -4,6 +4,10 @@ import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.enums.MemberStatus;
 import com.tablebanking.loanmanagement.service.MemberService;
+import com.tablebanking.loanmanagement.entity.User;
+import com.tablebanking.loanmanagement.entity.enums.NotificationChannel;
+import com.tablebanking.loanmanagement.exception.BusinessException;
+import com.tablebanking.loanmanagement.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -12,6 +16,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +30,7 @@ import java.util.UUID;
 public class MemberController {
 
     private final MemberService memberService;
+    private final UserRepository userRepository;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
@@ -52,6 +59,31 @@ public class MemberController {
             @RequestParam MemberStatus status) {
         MemberResponse member = memberService.changeMemberStatus(memberId, status);
         return ResponseEntity.ok(ApiResponse.success("Status updated", member));
+    }
+
+    @PostMapping("/{memberId}/resend-invitation")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Resend registration invitation to a member")
+    public ResponseEntity<ApiResponse<Void>> resendInvitation(
+            @PathVariable UUID memberId,
+            @RequestParam(defaultValue = "BOTH") NotificationChannel channel,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        // Validate the admin belongs to the same group as the target member
+        User adminUser = userRepository.findByUsernameWithMember(userDetails.getUsername())
+                .orElseThrow(() -> new BusinessException("Authenticated user not found"));
+
+        if (adminUser.getMember() == null) {
+            throw new BusinessException("Authenticated user has no associated member record");
+        }
+
+        MemberResponse targetMember = memberService.getMemberById(memberId);
+        if (!adminUser.getMember().getGroup().getId().equals(targetMember.getGroupId())) {
+            throw new BusinessException("You can only resend invitations for members in your group");
+        }
+
+        memberService.resendRegistrationNotification(memberId, channel);
+        return ResponseEntity.ok(ApiResponse.success("Registration invitation resent successfully", null));
     }
 
     @GetMapping("/{memberId}")

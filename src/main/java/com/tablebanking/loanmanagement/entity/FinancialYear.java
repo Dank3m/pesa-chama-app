@@ -54,6 +54,10 @@ public class FinancialYear extends BaseEntity {
     @Builder.Default
     private BigDecimal totalExpenses = BigDecimal.ZERO;
 
+    @Column(name = "opening_balance", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal openingBalance = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "financialYear", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ContributionCycle> contributionCycles = new ArrayList<>();

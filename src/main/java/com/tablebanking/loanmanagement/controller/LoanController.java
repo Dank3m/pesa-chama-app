@@ -52,8 +52,10 @@ public class LoanController {
     @PostMapping("/{loanId}/disburse")
     @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
     @Operation(summary = "Disburse an approved loan")
-    public ResponseEntity<ApiResponse<LoanResponse>> disburseLoan(@PathVariable UUID loanId) {
-        LoanResponse loan = loanService.disburseLoan(loanId);
+    public ResponseEntity<ApiResponse<LoanResponse>> disburseLoan(
+            @PathVariable UUID loanId,
+            @RequestBody(required = false) DisburseLoanRequest request) {
+        LoanResponse loan = loanService.disburseLoan(loanId, request);
         return ResponseEntity.ok(ApiResponse.success("Loan disbursed", loan));
     }
 
@@ -127,7 +129,7 @@ public class LoanController {
     }
 
     @GetMapping("/group/{groupId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'TREASURER')")
     @Operation(summary = "Get loans by group with optional status filter")
     public ResponseEntity<ApiResponse<List<LoanResponse>>> getLoansByGroup(
             @PathVariable UUID groupId,

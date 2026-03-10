@@ -3,6 +3,7 @@ package com.tablebanking.loanmanagement.service;
 import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.*;
+import com.tablebanking.loanmanagement.entity.enums.CycleStatus;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -203,9 +204,12 @@ public class FinancialYearService {
     private void createContributionCyclesForYear(FinancialYear year) {
         LocalDate currentMonth = year.getStartDate().withDayOfMonth(1);
         LocalDate endMonth = year.getEndDate().withDayOfMonth(1);
+        LocalDate now = LocalDate.now();
 
         while (!currentMonth.isAfter(endMonth)) {
             LocalDate dueDate = currentMonth.with(TemporalAdjusters.lastDayOfMonth());
+            
+            
             
             ContributionCycle cycle = ContributionCycle.builder()
                     .financialYear(year)
@@ -213,6 +217,13 @@ public class FinancialYearService {
                     .dueDate(dueDate)
                     .expectedAmount(year.getGroup().getContributionAmount())
                     .build();
+
+            if (dueDate.getMonth().equals(now.getMonth()) ) {
+                cycle.setStatus(CycleStatus.OPEN);
+            } else {
+                cycle.setStatus(CycleStatus.PENDING);
+            }
+
 
             cycleRepository.save(cycle);
             currentMonth = currentMonth.plusMonths(1);

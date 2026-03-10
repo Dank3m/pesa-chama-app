@@ -146,6 +146,10 @@ public class ResponseDTOs {
         private LoanStatus status;
         private Integer daysActive;
         private Instant createdAt;
+        private String disbursementChannel;
+        private String disbursementStatus;
+        private String disbursementReference;
+        private String disbursementFailureReason;
     }
 
     @Data
@@ -537,7 +541,11 @@ public class ResponseDTOs {
     @AllArgsConstructor
     public static class DashboardResponse {
         private BigDecimal totalBalance;
+        private BigDecimal openingBalance;
         private BigDecimal totalContributions;
+        private BigDecimal totalRepayments;
+        private BigDecimal totalDisbursements;
+        private BigDecimal totalExpenses;
         private int activeLoans;
         private int memberCount;
         private BigDecimal collectionRate;
@@ -721,6 +729,10 @@ public class ResponseDTOs {
         private String memberNumber;
         private UUID groupId;
         private String groupName;
+        private String preferredDisbursementChannel;
+        private String bankAccountNumber;
+        private String bankCode;
+        private String bankName;
     }
 
     @Data
@@ -988,5 +1000,73 @@ public class ResponseDTOs {
         private Integer currentMemberCount;
         private Integer maxMembersAllowed;
         private Boolean canAddMoreMembers;
+    }
+
+    // ==================== INVESTMENT RESPONSE DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InvestmentResponse {
+        private UUID id;
+        private UUID groupId;
+        private UUID financialYearId;
+        private String yearName;
+        private String type;
+        private String name;
+        private String description;
+        private BigDecimal amount;
+        private BigDecimal currentValue;
+        private LocalDate investmentDate;
+        private LocalDate maturityDate;
+        private String status;
+        private String receiptNumber;
+        private String notes;
+        private UUID createdBy;
+        private Instant createdAt;
+        private Instant updatedAt;
+    }
+
+    // ==================== STK PUSH RESPONSE DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StkPushResponse {
+        private String collectionRef;
+        private String status;
+        private String message;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StkPushStatusResponse {
+        private String collectionRef;
+        private String collectionType;
+        private UUID sourceId;
+        private BigDecimal amount;
+        private BigDecimal originalAmount;
+        private String status;
+        private String statusDescription;
+        private String mpesaReceiptNumber;
+        private Instant completedAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InvestmentSummaryResponse {
+        private UUID groupId;
+        private BigDecimal totalInvested;
+        private BigDecimal currentValue;
+        private int activeCount;
+        private int maturedCount;
+        private int redeemedCount;
+        private int totalCount;
     }
 }

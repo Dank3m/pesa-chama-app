@@ -62,6 +62,26 @@ public class ContributionService {
             throw new BusinessException("Cannot record contributions for a closed cycle");
         }
 
+        // Validate that the previous cycle's contribution is fully paid
+        cycleRepository.findPreviousCycle(cycle.getFinancialYear().getId(), cycle.getCycleMonth())
+                .ifPresent(previousCycle -> {
+                    contributionRepository.findByMemberIdAndCycleId(member.getId(), previousCycle.getId())
+                            .ifPresentOrElse(
+                                    prevContribution -> {
+                                        if (prevContribution.getStatus() != ContributionStatus.PAID) {
+                                            throw new BusinessException(
+                                                    "Cannot record contribution for " + cycle.getCycleMonth() +
+                                                    ". Previous cycle " + previousCycle.getCycleMonth() + " is not fully paid.");
+                                        }
+                                    },
+                                    () -> {
+                                        throw new BusinessException(
+                                                "Cannot record contribution for " + cycle.getCycleMonth() +
+                                                ". Previous cycle " + previousCycle.getCycleMonth() + " is not fully paid.");
+                                    }
+                            );
+                });
+
         // Get or create contribution record
         Contribution contribution = contributionRepository
                 .findByMemberIdAndCycleId(member.getId(), cycle.getId())

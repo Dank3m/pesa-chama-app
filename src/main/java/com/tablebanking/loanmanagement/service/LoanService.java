@@ -4,6 +4,7 @@ import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.*;
 import com.tablebanking.loanmanagement.entity.enums.*;
+import com.tablebanking.loanmanagement.event.LoanDisbursementRequestEvent;
 import com.tablebanking.loanmanagement.event.LoanEvent;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.*;
@@ -54,6 +55,9 @@ public class LoanService {
 
     @Value("${app.kafka.topics.loan-events:loan-events}")
     private String loanEventsTopic;
+
+    @Value("${app.kafka.topics.disbursement-events:disbursement-events}")
+    private String disbursementEventsTopic;
 
     private static final AtomicLong loanSequence = new AtomicLong(System.currentTimeMillis() % 1000000);
 
@@ -181,13 +185,31 @@ public class LoanService {
      * Disburse an approved loan.
      */
     @CacheEvict(value = {"memberLoans", "memberBalance"}, allEntries = true)
-    public LoanResponse disburseLoan(UUID loanId) {
+    public LoanResponse disburseLoan(UUID loanId, DisburseLoanRequest request) {
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new BusinessException("Loan not found"));
 
         if (loan.getStatus() != LoanStatus.APPROVED) {
             throw new BusinessException("Only approved loans can be disbursed");
         }
+
+        Member member = loan.getMember();
+
+        // Determine disbursement channel
+        DisbursementChannel channel = determineDisbursementChannel(request, member);
+
+        // Validate bank details for BANK channel
+        if (channel == DisbursementChannel.BANK) {
+            String bankAccount = request != null && request.getBankAccount() != null
+                    ? request.getBankAccount() : member.getBankAccountNumber();
+            if (bankAccount == null || bankAccount.isBlank()) {
+                throw new BusinessException("Bank account number is required for bank disbursement");
+            }
+        }
+
+        // Set disbursement tracking fields
+        loan.setDisbursementChannel(channel);
+        loan.setDisbursementStatus(DisbursementStatus.PENDING);
 
         loan.setStatus(LoanStatus.DISBURSED);
         loan.setDisbursementDate(LocalDate.now());
@@ -209,11 +231,64 @@ public class LoanService {
         loan.getFinancialYear().addLoanDisbursement(loan.getPrincipalAmount());
         financialYearRepository.save(loan.getFinancialYear());
 
+        // Publish notification event
         publishLoanEvent(loan, "LOAN_DISBURSED");
 
-        log.info("Loan disbursed: {} Amount: {}", loan.getLoanNumber(), loan.getPrincipalAmount());
+        // Publish disbursement request to payment service
+        publishDisbursementRequestEvent(loan, channel, request);
+
+        log.info("Loan disbursed: {} Amount: {} Channel: {}", loan.getLoanNumber(), loan.getPrincipalAmount(), channel);
 
         return mapToLoanResponse(loan);
+    }
+
+    private DisbursementChannel determineDisbursementChannel(DisburseLoanRequest request, Member member) {
+        if (request != null && request.getDisbursementChannel() != null) {
+            try {
+                return DisbursementChannel.valueOf(request.getDisbursementChannel().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException("Invalid disbursement channel: " + request.getDisbursementChannel());
+            }
+        }
+        if (member.getPreferredDisbursementChannel() != null) {
+            return member.getPreferredDisbursementChannel();
+        }
+        return DisbursementChannel.MPESA;
+    }
+
+    private void publishDisbursementRequestEvent(Loan loan, DisbursementChannel channel, DisburseLoanRequest request) {
+        try {
+            Member member = loan.getMember();
+
+            String phoneNumber = request != null && request.getPhoneNumber() != null
+                    ? request.getPhoneNumber() : member.getPhoneNumber();
+            String bankAccount = request != null && request.getBankAccount() != null
+                    ? request.getBankAccount() : member.getBankAccountNumber();
+            String bankCode = request != null && request.getBankCode() != null
+                    ? request.getBankCode() : member.getBankCode();
+
+            LoanDisbursementRequestEvent event = LoanDisbursementRequestEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .eventType("LOAN_DISBURSEMENT_REQUEST")
+                    .loanId(loan.getId())
+                    .loanNumber(loan.getLoanNumber())
+                    .memberId(member.getId())
+                    .memberName(member.getFullName())
+                    .phoneNumber(phoneNumber)
+                    .bankAccount(bankAccount)
+                    .bankCode(bankCode)
+                    .groupId(member.getGroup().getId())
+                    .groupName(member.getGroup().getName())
+                    .amount(loan.getPrincipalAmount())
+                    .disbursementMethod(channel.name())
+                    .timestamp(Instant.now())
+                    .build();
+
+            kafkaTemplate.send(disbursementEventsTopic, loan.getId().toString(), event);
+            log.debug("Published disbursement request event for loan: {}", loan.getLoanNumber());
+        } catch (Exception e) {
+            log.error("Failed to publish disbursement request event: {}", e.getMessage());
+        }
     }
 
     /**
@@ -469,7 +544,7 @@ public class LoanService {
         if (status != null) {
             loans = loanRepository.findByMemberGroupIdAndStatus(groupId, status);
         } else {
-            loans = loanRepository.findActiveLoansByGroupId(groupId);
+            loans = loanRepository.findAllByGroupId(groupId);
         }
         return loans.stream()
                 .map(this::mapToLoanResponse)
@@ -707,6 +782,10 @@ public class LoanService {
                 .status(loan.getStatus())
                 .daysActive(loan.getDaysActive())
                 .createdAt(loan.getCreatedAt())
+                .disbursementChannel(loan.getDisbursementChannel() != null ? loan.getDisbursementChannel().name() : null)
+                .disbursementStatus(loan.getDisbursementStatus() != null ? loan.getDisbursementStatus().name() : null)
+                .disbursementReference(loan.getDisbursementReference())
+                .disbursementFailureReason(loan.getDisbursementFailureReason())
                 .build();
     }
 

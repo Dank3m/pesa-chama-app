@@ -3,6 +3,7 @@ package com.tablebanking.loanmanagement.service;
 import com.tablebanking.loanmanagement.dto.request.RequestDTOs.*;
 import com.tablebanking.loanmanagement.dto.response.ResponseDTOs.*;
 import com.tablebanking.loanmanagement.entity.*;
+import com.tablebanking.loanmanagement.entity.enums.DisbursementChannel;
 import com.tablebanking.loanmanagement.exception.BusinessException;
 import com.tablebanking.loanmanagement.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,32 @@ public class SettingsService {
         User user = userRepository.findByIdWithMemberAndGroup(userId)
                 .orElseThrow(() -> new BusinessException("User not found"));
         return mapToProfileResponse(user);
+    }
+
+    /**
+     * Get profile for a specific group (for multi-group users).
+     * Returns the member record for the user in the specified group.
+     */
+    @Transactional(readOnly = true)
+    public ProfileResponse getProfileForGroup(UUID userId, UUID groupId) {
+        User user = userRepository.findByIdWithMemberAndGroup(userId)
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        Member primaryMember = user.getMember();
+        if (primaryMember == null || primaryMember.getEmail() == null) {
+            throw new BusinessException("User has no email associated");
+        }
+
+        // If requesting the primary member's group, return it directly
+        if (primaryMember.getGroup().getId().equals(groupId)) {
+            return mapToProfileResponse(user);
+        }
+
+        // Find member record in the requested group using the same email
+        Member targetMember = memberRepository.findByGroupIdAndEmail(groupId, primaryMember.getEmail())
+                .orElseThrow(() -> new BusinessException("User does not have access to this group"));
+
+        return mapToProfileResponseForMember(user, targetMember);
     }
 
     public ProfileResponse updateProfile(UUID userId, UpdateProfileRequest request) {
@@ -70,6 +97,23 @@ public class SettingsService {
         }
         if (request.getDateOfBirth() != null) {
             member.setDateOfBirth(request.getDateOfBirth());
+        }
+        if (request.getPreferredDisbursementChannel() != null) {
+            try {
+                member.setPreferredDisbursementChannel(
+                        DisbursementChannel.valueOf(request.getPreferredDisbursementChannel().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException("Invalid disbursement channel: " + request.getPreferredDisbursementChannel());
+            }
+        }
+        if (request.getBankAccountNumber() != null) {
+            member.setBankAccountNumber(request.getBankAccountNumber());
+        }
+        if (request.getBankCode() != null) {
+            member.setBankCode(request.getBankCode());
+        }
+        if (request.getBankName() != null) {
+            member.setBankName(request.getBankName());
         }
 
         memberRepository.save(member);
@@ -188,8 +232,10 @@ public class SettingsService {
     // ==================== MAPPING METHODS ====================
 
     private ProfileResponse mapToProfileResponse(User user) {
-        Member member = user.getMember();
+        return mapToProfileResponseForMember(user, user.getMember());
+    }
 
+    private ProfileResponse mapToProfileResponseForMember(User user, Member member) {
         ProfileResponse.ProfileResponseBuilder builder = ProfileResponse.builder()
                 .id(user.getId());
 
@@ -203,7 +249,11 @@ public class SettingsService {
                     .dateOfBirth(member.getDateOfBirth())
                     .memberNumber(member.getMemberNumber())
                     .groupId(member.getGroup().getId())
-                    .groupName(member.getGroup().getName());
+                    .groupName(member.getGroup().getName())
+                    .preferredDisbursementChannel(member.getPreferredDisbursementChannel() != null ? member.getPreferredDisbursementChannel().name() : null)
+                    .bankAccountNumber(member.getBankAccountNumber())
+                    .bankCode(member.getBankCode())
+                    .bankName(member.getBankName());
         }
 
         return builder.build();

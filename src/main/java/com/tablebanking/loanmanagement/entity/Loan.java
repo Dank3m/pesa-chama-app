@@ -1,5 +1,7 @@
 package com.tablebanking.loanmanagement.entity;
 
+import com.tablebanking.loanmanagement.entity.enums.DisbursementChannel;
+import com.tablebanking.loanmanagement.entity.enums.DisbursementStatus;
 import com.tablebanking.loanmanagement.entity.enums.LoanStatus;
 import com.tablebanking.loanmanagement.entity.enums.LoanType;
 import jakarta.persistence.*;
@@ -85,6 +87,20 @@ public class Loan extends BaseEntity {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disbursement_channel", length = 10)
+    private DisbursementChannel disbursementChannel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disbursement_status", length = 20)
+    private DisbursementStatus disbursementStatus;
+
+    @Column(name = "disbursement_reference", length = 100)
+    private String disbursementReference;
+
+    @Column(name = "disbursement_failure_reason", columnDefinition = "TEXT")
+    private String disbursementFailureReason;
 
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
