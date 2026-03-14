@@ -112,9 +112,9 @@ jobs:
             echo "Waiting for backend to start..."
             sleep 45
             
-            # Check via nginx
+            # Check inside container
             for i in 1 2 3 4 5; do
-              if curl -sf -k https://localhost/api/actuator/health > /dev/null 2>&1; then
+              if docker compose exec -T backend curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
                 echo "Backend is healthy!"
                 exit 0
               fi
