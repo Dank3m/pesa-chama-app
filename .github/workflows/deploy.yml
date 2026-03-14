@@ -104,13 +104,27 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.SERVER_IP }} << 'ENDSSH'
             cd /opt/pesa-chama
             docker compose pull backend
             docker compose up -d --no-deps backend
-            sleep 10
-            curl -f http://localhost:8080/actuator/health || exit 1
-            echo "Backend deployment successful!"
+            
+            echo "Waiting for backend to start..."
+            sleep 45
+            
+            # Check via nginx
+            for i in 1 2 3 4 5; do
+              if curl -sf -k https://localhost/api/actuator/health > /dev/null 2>&1; then
+                echo "Backend is healthy!"
+                exit 0
+              fi
+              echo "Attempt $i: Backend not ready, waiting..."
+              sleep 10
+            done
+            
+            echo "Health check failed, checking logs..."
+            docker compose logs --tail=30 backend
+            exit 1
           ENDSSH
 
       - name: Notify Telegram
