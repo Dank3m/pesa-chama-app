@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/pesa-chama-backend
+  IMAGE_NAME: dank3m/pesa-chama-backend
 
 permissions:
   contents: read
